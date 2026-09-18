@@ -376,6 +376,12 @@
   canvas.addEventListener('pointerleave', (e)=>{ if(e.buttons===0) releasePointer(e); });
 
   // ---------- triangle texture mapping ----------
+  function expandPoint(p, ecx, ecy, amount){
+  const dx = p.x-ecx, dy = p.y-ecy;
+  const len = Math.hypot(dx,dy)||1;
+  return { x: p.x + (dx/len)*amount, y: p.y + (dy/len)*amount };
+  }
+  
   function drawTriangle(im, s0,s1,s2, d0,d1,d2){
     const dx1=s1.x-s0.x, dy1=s1.y-s0.y, dx2=s2.x-s0.x, dy2=s2.y-s0.y;
     const denom = dx1*dy2-dx2*dy1;
@@ -387,10 +393,16 @@
     const b=(dv1*dy2-dv2*dy1)/denom;
     const d=(dv2*dx1-dv1*dx2)/denom;
     const f=d0.y-b*s0.x-d*s0.y;
+    
+    const ecx = (d0.x+d1.x+d2.x)/3, ecy = (d0.y+d1.y+d2.y)/3;  // 삼각형 무게중심
+    const OVERDRAW = 0.75; // px 단위
+    const p0 = expandPoint(d0, ecx, ecy, OVERDRAW);
+    const p1 = expandPoint(d1, ecx, ecy, OVERDRAW);
+    const p2 = expandPoint(d2, ecx, ecy, OVERDRAW);
 
     ctx.save();
     ctx.beginPath();
-    ctx.moveTo(d0.x,d0.y); ctx.lineTo(d1.x,d1.y); ctx.lineTo(d2.x,d2.y); ctx.closePath();
+    ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.closePath();
     ctx.clip();
     ctx.transform(a,b,c,d,e,f);
     ctx.drawImage(im,0,0);
