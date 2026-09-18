@@ -141,7 +141,7 @@
   function resize(){
     const rect = canvas.parentElement.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = (window.devicePixelRatio || 1) * 1.5;
     canvas.width = rect.width*dpr; canvas.height = rect.height*dpr;
     canvas.style.width = rect.width+'px'; canvas.style.height = rect.height+'px';
     ctx.setTransform(dpr,0,0,dpr,0,0);
@@ -395,7 +395,7 @@
     const f=d0.y-b*s0.x-d*s0.y;
     
     const ecx = (d0.x+d1.x+d2.x)/3, ecy = (d0.y+d1.y+d2.y)/3;  // 삼각형 무게중심
-    const OVERDRAW = 0.75; // px 단위
+    const OVERDRAW = 1.8; // px 단위
     const p0 = expandPoint(d0, ecx, ecy, OVERDRAW);
     const p1 = expandPoint(d1, ecx, ecy, OVERDRAW);
     const p2 = expandPoint(d2, ecx, ecy, OVERDRAW);
