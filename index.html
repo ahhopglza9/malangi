@@ -184,6 +184,23 @@ const MALANGIS = [
     dome: { A: 1.22, C: 1.15, Hup: 1.00, Hlo: 0.50 },
     camEl: 0.70
   } */
+  {
+    id: 'butter',
+    name: '버터 말랑이',
+    shape: 'box',                   // 직육면체 (모서리가 살짝 둥근 상자)
+    img: 'asset:butter',            // 여섯 면을 모아 둔 이미지(3열×2행): 앞(라벨)·뒤·옆·옆(왼쪽)·위·아래
+    thumb: 'asset:butter_thumb',    // 홈 화면 카드에 쓸 작은 사진
+    box: { w: 0.864, h: 2.8, d: 0.784, r: 0.1 },    // 가로·높이·깊이(월드 단위, 사진의 면 크기에서 잰 값) / r = 모서리 둥글기
+    sfx: { press: 'asset:butter_press', squeeze: 'asset:butter_squeeze', squeezeInterval: 1}
+  }
+  ,{
+    id: 'wax',
+    name: '왁뿌볼',
+    shape: 'sphere',
+    wax: { color: '#f3ead7', core: '#ffb8c9' },   // 겉면 왁스 색 / 깨진 자리로 보이는 속 색
+    shadow: false,
+    // sfx: { press: 'asset:wax_press', squeeze: 'asset:wax_squeeze' }            ← 왁스 깨지는 소리 파일이 생기면 여기에
+  }
   ,{
     id: 'gun',
     name: '총 말랑이',
@@ -193,6 +210,7 @@ const MALANGIS = [
     puff: 0.7,                    // 정면 사진(총구 쪽)에서 잰 실제 두께에 맞춘 통통한 정도
     sfx: { press: 'asset:gun_press', squeeze: 'asset:gun_squeeze', volume: 0.3, squeezeInterval: 0.15 }   //← 효과음이 생기면 여기에
   }
+  
   ,{
     id: 'bolt',
     name: '번개말랑이',
@@ -212,14 +230,6 @@ const MALANGIS = [
     shape: 'sphere',                // 완전한 공
     shadow: false,                  // 바닥 그림자 없음
     sfx: { press: 'asset:bubble_press', rub: 'asset:bubble_rub', squeeze: 'asset:bubble_squeeze', volume: 1, squeezeInterval: 1}
-  }
-  ,{
-    id: 'wax',
-    name: '왁뿌볼',
-    shape: 'sphere',
-    wax: { color: '#f3ead7', core: '#ffb8c9' },   // 겉면 왁스 색 / 깨진 자리로 보이는 속 색
-    shadow: false,
-    // sfx: { press: 'asset:wax_press', squeeze: 'asset:wax_squeeze' }            ← 왁스 깨지는 소리 파일이 생기면 여기에
   }
   ,{
     id: 'galaxy',
@@ -243,15 +253,7 @@ const MALANGIS = [
     profile: [[0,0],[0.025,0.115],[0.05,0.1615],[0.075,0.1922],[0.1,0.216],[0.125,0.2342],[0.15,0.2486],[0.175,0.2597],[0.2,0.2679],[0.225,0.2735],[0.25,0.2777],[0.275,0.2793],[0.3,0.2775],[0.325,0.2739],[0.35,0.267],[0.375,0.2584],[0.4,0.2475],[0.425,0.2412],[0.45,0.2486],[0.475,0.2502],[0.5,0.2535],[0.525,0.2527],[0.55,0.2653],[0.575,0.286],[0.6,0.3014],[0.625,0.3131],[0.65,0.3219],[0.675,0.3287],[0.7,0.3337],[0.725,0.3358],[0.75,0.3365],[0.775,0.3336],[0.8,0.3283],[0.825,0.3226],[0.85,0.3139],[0.875,0.3027],[0.9,0.2872],[0.925,0.2661],[0.95,0.2371],[0.975,0.1914],[1,0]],
     sfx: { press: 'asset:snow_press', squeeze: 'asset:snow_squeeze', volume: 2} 
   }
-  ,{
-    id: 'butter',
-    name: '버터 말랑이',
-    shape: 'box',                   // 직육면체 (모서리가 살짝 둥근 상자)
-    img: 'asset:butter',            // 여섯 면을 모아 둔 이미지(3열×2행): 앞(라벨)·뒤·옆·옆(왼쪽)·위·아래
-    thumb: 'asset:butter_thumb',    // 홈 화면 카드에 쓸 작은 사진
-    box: { w: 0.864, h: 2.8, d: 0.784, r: 0.1 },    // 가로·높이·깊이(월드 단위, 사진의 면 크기에서 잰 값) / r = 모서리 둥글기
-    sfx: { press: 'asset:butter_press', squeeze: 'asset:butter_squeeze', squeezeInterval: 1}
-  }
+  
   // ,{ ...새 말랑이... }
 ];
 
