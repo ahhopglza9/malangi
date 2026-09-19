@@ -200,7 +200,7 @@ const MALANGIS = [
     thumb: 'asset:bubble_thumb',    // 홈 화면 카드에 쓸 작은 사진
     shape: 'sphere',                // 완전한 공
     shadow: false,                  // 바닥 그림자 없음
-    sfx: { press: 'asset:bubble_press', rub: 'asset:bubble_rub', squeeze: 'asset:bubble_squeeze', volume: 1}
+    sfx: { press: 'asset:bubble_press', rub: 'asset:bubble_rub', squeeze: 'asset:bubble_squeeze', volume: 1, squeezeInterval: 0.15}
   }
   ,{
     id: 'wax',
@@ -1299,7 +1299,7 @@ const MALANGIS = [
   
   // ---------- 소리 (파일이 있으면 파일, 없으면 기본 합성음) ----------
   const Sound = (function(){
-    let ctx = null, master = null, noiseBuf = null, bufs = {}, vol = 1, token = 0, rub = null, grip = null;
+    let ctx = null, master = null, noiseBuf = null, bufs = {}, vol = 1, sqInt = 0, token = 0, rub = null, grip = null;
     let level = 1, muted = false;                                   // 전체 볼륨 0~1 / 음소거 (브라우저에 기억)
     try {
       const v = parseFloat(localStorage.getItem('malangi_volume'));
@@ -1332,6 +1332,7 @@ const MALANGIS = [
       ensure();
       if (!ctx || !m.sfx) return;
       vol = m.sfx.volume == null ? 1 : m.sfx.volume;
+      sqInt = m.sfx.squeezeInterval > 0 ? m.sfx.squeezeInterval : 0;
       for (const key of ['press', 'release', 'rub', 'squeeze', 'crack']){
         const src = asset(m.sfx[key]);
         if (!src) continue;
@@ -1416,7 +1417,9 @@ const MALANGIS = [
       if (ctx.state === 'suspended') ctx.resume();
       synthThud('press', 0.55);                                      // 움켜쥐는 순간의 "꾹"
       const g = ctx.createGain(); g.gain.value = 0.0001; g.connect(master);
-      if (bufs.squeeze){
+      if (bufs.squeeze && sqInt > 0){
+        grip = { g, sample:true, shots:true, next:0 };                 // 파일을 정해 둔 간격마다 한 번씩 재생
+      } else if (bufs.squeeze){
         const src = ctx.createBufferSource(); src.buffer = bufs.squeeze; src.loop = true;
         src.connect(g); src.start();
         grip = { g, src, sample:true };
@@ -1440,6 +1443,13 @@ const MALANGIS = [
     function gripUpdate(lv){
       if (!grip) return;
       const now = ctx.currentTime;
+      if (grip.shots){                                                 // 간격 재생: 세게 쥘수록 간격이 조금 더 짧아지고 소리가 커진다
+        if (now >= grip.next){
+          playSample(bufs.squeeze, Math.min(1, 0.5 + 0.5*lv)*vol, 0.94 + Math.random()*0.12 + lv*0.08);
+          grip.next = now + sqInt*(1.25 - 0.5*lv);
+        }
+        return;
+      }
       if (grip.sample){
         grip.g.gain.setTargetAtTime(Math.min(1, 0.05 + lv*0.95)*vol, now, 0.05);
         grip.src.playbackRate.setTargetAtTime(0.9 + lv*0.25, now, 0.08);
