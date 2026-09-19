@@ -96,10 +96,13 @@
   <h2 class="playName" id="playName"></h2>
   <p class="sub" style="margin-top:0">꾹 누를수록 깊이 들어가요 (두 손가락도 가능)</p>
   <div class="stage" id="stage"><canvas id="c"></canvas><div class="loading" id="loading">3D 말랑이 빚는 중… 🫧</div></div>
-  <div class="tools"><button class="tool active" data-tool="finger">☝️ 손가락</button><button class="tool" data-tool="palm">🖐️ 손바닥</button></div>
+  <div class="controls">
+    <button class="ctl" id="gripBtn" type="button">✊ 꽉 쥐기 <small>(스페이스바)</small></button>
+    <div class="vol"><button class="ctl icon" id="muteBtn" type="button" aria-label="소리 켜기/끄기">🔊</button><input id="volRange" type="range" min="0" max="100" value="100" aria-label="볼륨"></div>
+  </div>
   <div class="counter">오늘 만지기 <span id="count">0</span>번</div>
   <div class="msg" id="msg"></div>
-  <div class="hint">누른 채로 끌면 말랑한 피부가 따라와요 · 빈 곳을 드래그하면 돌려볼 수 있어요</div>
+  <div class="hint">누른 채로 끌면 말랑한 피부가 따라와요 · 빈 곳을 드래그하면 돌려볼 수 있어요<br>스페이스바(또는 ✊ 버튼)를 누르고 있으면 꽉 쥐어요</div>
 </div>
 
 <!-- ① 말랑이 목록 : 새 말랑이는 여기만 수정하세요 -->
@@ -129,8 +132,8 @@
  *  │   └───────────────────────────────────────────────
  *  │ gloss  : 눌렀을 때 생기는 반짝임 (0~1). 기본: 돔 1 / 실루엣 0(무광)
  *  │ whiten : 눌려서 얇아진 곳이 뽀얘지는 정도 (0~1). 기본: 돔 1 / 실루엣 0
- *  │ sfx    : 효과음 { press, release, rub, volume }
- *  │            press  = 누를 때, release = 뗄 때, rub = 문지를 때 계속 나는 소리(반복 재생)
+ *  │ sfx    : 효과음 { press, release, rub, squeeze, volume }
+ *  │            press  = 누를 때, release = 뗄 때, rub = 문지를 때 계속 나는 소리(반복 재생), squeeze = 스페이스바로 꽉 쥐는 동안 계속 나는 소리(반복 재생)
  *  │            각각 'asset:키' / 파일 경로 / 주소. 하나라도 없으면 그 소리만 기본 합성음이 나와요
  *  │ body   : (돔 전용) 사진 속 몸통 타원 { cx, cy, rx, ry } (픽셀).  생략하면 투명 배경을 보고 자동 감지
  *  │ dome   : (돔 전용) 3D 몸통 크기 { A, C, Hup, Hlo }.            생략하면 사진 비율에 맞춰 자동 계산
@@ -407,11 +410,33 @@ const MALANGIS = [
         }
       }
 
+      
+      // ---- 꽉 쥐기: 손으로 전체를 움켜쥔 것처럼 중심을 향해 줄어들고,
+      //      손가락 사이로 삐져나오듯 군데군데 울퉁불퉁 부풀어 오른다 ----
+      const GRIP_SHRINK = 0.30, GRIP_BULGE = 0.07;
+      const GRIP_CY = hasFloor ? FLOOR : CENTER_Y;         // 바닥이 있으면 바닥에 붙은 채로 줄어든다
+      function addGrip(grip, time){
+        if (grip <= 0.001) return;
+        for (let i=0;i<NV;i++){
+          const i3=i*3, rx=rest[i3], ry=rest[i3+1], rz=rest[i3+2];
+          const l = 0.5*( Math.sin(5.1*rx+1.3)*Math.sin(4.3*ry+0.7) + Math.sin(4.7*rz+2.1)*Math.sin(3.9*rx+0.4) );   // -1..1 울퉁불퉁 무늬
+          const s = GRIP_SHRINK*grip*(1 + 0.15*l);
+          const bulge = GRIP_BULGE*grip*(0.30 + 0.70*(0.5 + 0.5*l)) + 0.010*grip*Math.sin(time*22 + 2.6*rx + 3.1*ry + 1.7*rz);      // 부드럽게 퍼지는 떨림 포함
+          T[i3]   += -s*rx           + g.nrest[i3]  *bulge;
+          T[i3+1] += -s*(ry-GRIP_CY) + g.nrest[i3+1]*bulge;
+          T[i3+2] += -s*rz           + g.nrest[i3+2]*bulge;
+        }
+      }
+
       // returns { active, deform }  (active=false 이면 화면 갱신 불필요)
-      function step(dt, contacts){
-        if (!contacts.length && sleeping) return { active:false, deform:0 };
+      //   grip : 꽉 쥐는 정도 0~1,  time : 초 단위 시간(떨림용)
+      function step(dt, contacts, grip, time){
+        grip = grip || 0; time = time || 0;
+        const idle = !contacts.length && grip <= 0.001;
+        if (idle && sleeping) return { active:false, deform:0 };
         sleeping = false;
         computeTargets(contacts);
+        addGrip(grip, time);
         const n = Math.max(1, Math.ceil(dt/(1/160)));
         const h = dt/n;
         for (let s=0;s<n;s++) substep(h);
@@ -429,7 +454,7 @@ const MALANGIS = [
           strain[i] += (Math.min(1, dm*1.8) - strain[i]) * 0.22;
         }
         extent.x0=ex0; extent.x1=ex1; extent.y0=ey0; extent.y1=ey1; extent.z0=ez0; extent.z1=ez1;
-        if (!contacts.length && maxV < 0.004 && maxD < 0.0008){
+        if (idle && maxV < 0.004 && maxD < 0.0008){
           d.fill(0); v.fill(0); pos.set(rest); strain.fill(0); sleeping = true;
           Object.assign(extent, ext0);
         }
@@ -1113,19 +1138,30 @@ const MALANGIS = [
   function loadImage(m){ return loadImageSrc(m.id, m.img); }
   function loadImageBack(m){ return m.imgBack ? loadImageSrc(m.id + ':back', m.imgBack) : Promise.resolve(null); }
 
+  
   // ---------- 소리 (파일이 있으면 파일, 없으면 기본 합성음) ----------
   const Sound = (function(){
-    let ctx = null, noiseBuf = null, bufs = {}, vol = 1, token = 0, rub = null;
+    let ctx = null, master = null, noiseBuf = null, bufs = {}, vol = 1, token = 0, rub = null, grip = null;
+    let level = 1, muted = false;                                   // 전체 볼륨 0~1 / 음소거 (브라우저에 기억)
+    try {
+      const v = parseFloat(localStorage.getItem('malangi_volume'));
+      if (!isNaN(v)) level = Math.min(1, Math.max(0, v));
+      muted = localStorage.getItem('malangi_muted') === '1';
+    } catch(e){}
+    function savePrefs(){ try { localStorage.setItem('malangi_volume', String(level)); localStorage.setItem('malangi_muted', muted ? '1' : '0'); } catch(e){} }
+    function masterGain(){ return muted ? 0 : level*level; }        // 제곱: 슬라이더가 귀에 자연스럽게 느껴지도록
+    function applyMaster(){ if (ctx && master) master.gain.setTargetAtTime(masterGain(), ctx.currentTime, 0.02); }
 
     function ensure(){
       if (!ctx){
         try {
           ctx = new (window.AudioContext || window.webkitAudioContext)();
+          master = ctx.createGain(); master.gain.value = masterGain(); master.connect(ctx.destination);   // 모든 소리는 여기를 지난다
           const len = ctx.sampleRate;
           noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
           const d = noiseBuf.getChannelData(0);
           for (let i=0;i<len;i++) d[i] = Math.random()*2-1;
-        } catch(e){ ctx = null; }
+        } catch(e){ ctx = null; master = null; }
       }
       if (ctx && ctx.state === 'suspended') ctx.resume();
     }
@@ -1138,7 +1174,7 @@ const MALANGIS = [
       ensure();
       if (!ctx || !m.sfx) return;
       vol = m.sfx.volume == null ? 1 : m.sfx.volume;
-      for (const key of ['press', 'release', 'rub']){
+      for (const key of ['press', 'release', 'rub', 'squeeze']){
         const src = asset(m.sfx[key]);
         if (!src) continue;
         try {
@@ -1151,7 +1187,7 @@ const MALANGIS = [
     function playSample(buf, gain, rate){
       const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
       const g = ctx.createGain(); g.gain.value = gain;
-      src.connect(g).connect(ctx.destination); src.start();
+      src.connect(g).connect(master); src.start();
     }
     function synthThud(kind, p){
       const now = ctx.currentTime;
@@ -1164,7 +1200,7 @@ const MALANGIS = [
       og.gain.setValueAtTime(0.001, now);
       og.gain.exponentialRampToValueAtTime((kind==='press'?0.35:0.22)*p, now+0.01);
       og.gain.exponentialRampToValueAtTime(0.0008, now+dur);
-      osc.connect(og).connect(ctx.destination);
+      osc.connect(og).connect(master);
       osc.start(now); osc.stop(now+dur+0.02);
 
       const noise = ctx.createBufferSource(); noise.buffer = noiseBuf;
@@ -1174,7 +1210,7 @@ const MALANGIS = [
       ng.gain.setValueAtTime(0.001, now);
       ng.gain.exponentialRampToValueAtTime((kind==='press'?0.18:0.1)*p, now+0.008);
       ng.gain.exponentialRampToValueAtTime(0.0006, now+dur*0.85);
-      noise.connect(filt).connect(ng).connect(ctx.destination);
+      noise.connect(filt).connect(ng).connect(master);
       noise.start(now); noise.stop(now+dur);
     }
     function hit(kind, power){
@@ -1190,12 +1226,12 @@ const MALANGIS = [
       const g = ctx.createGain(); g.gain.value = 0.0001;
       if (bufs.rub){
         const src = ctx.createBufferSource(); src.buffer = bufs.rub; src.loop = true;
-        src.connect(g).connect(ctx.destination); src.start();
+        src.connect(g).connect(master); src.start();
         rub = { src, g, sample:true };
       } else {
         const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
         const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 500; f.Q.value = 0.7;
-        src.connect(f).connect(g).connect(ctx.destination); src.start();
+        src.connect(f).connect(g).connect(master); src.start();
         rub = { src, g, f, sample:false };
       }
     }
@@ -1216,7 +1252,61 @@ const MALANGIS = [
       r.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.08);
       setTimeout(()=>{ try{ r.src.stop(); }catch(e){} }, 220);
     }
-    return { ensure, load, press:(p)=>hit('press',p), release:()=>hit('release'), startRub, updateRub, stopRub };
+    // 꽉 쥐는 동안 계속 나는 소리 (파일 squeeze 가 있으면 반복 재생, 없으면 고무 짜는 소리를 합성)
+    function gripStart(){
+      if (!ctx || grip) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      synthThud('press', 0.55);                                      // 움켜쥐는 순간의 "꾹"
+      const g = ctx.createGain(); g.gain.value = 0.0001; g.connect(master);
+      if (bufs.squeeze){
+        const src = ctx.createBufferSource(); src.buffer = bufs.squeeze; src.loop = true;
+        src.connect(g); src.start();
+        grip = { g, src, sample:true };
+      } else {
+        // 고무가 짜이는 "끼익": 좁은 대역 노이즈(떨림) + 낮게 웅웅거리는 삼각파. 세게 쥘수록 음이 올라간다
+        const n = ctx.createBufferSource(); n.buffer = noiseBuf; n.loop = true;
+        const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 420; f.Q.value = 7;
+        const boost = ctx.createGain(); boost.gain.value = 4;
+        const am = ctx.createGain(); am.gain.value = 0.7;
+        const lfo = ctx.createOscillator(); lfo.frequency.value = 6.5;
+        const lg = ctx.createGain(); lg.gain.value = 0.3;
+        lfo.connect(lg); lg.connect(am.gain);
+        n.connect(f); f.connect(boost); boost.connect(am); am.connect(g);
+        const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = 62;
+        const og = ctx.createGain(); og.gain.value = 0.12;
+        o.connect(og); og.connect(g);
+        n.start(); lfo.start(); o.start();
+        grip = { g, f, o, n, lfo, sample:false };
+      }
+    }
+    function gripUpdate(lv){
+      if (!grip) return;
+      const now = ctx.currentTime;
+      if (grip.sample){
+        grip.g.gain.setTargetAtTime(Math.min(1, 0.05 + lv*0.95)*vol, now, 0.05);
+        grip.src.playbackRate.setTargetAtTime(0.9 + lv*0.25, now, 0.08);
+      } else {
+        grip.g.gain.setTargetAtTime(Math.min(0.22, 0.01 + lv*0.2), now, 0.05);
+        grip.f.frequency.setTargetAtTime(380 + lv*720, now, 0.08);
+        grip.o.frequency.setTargetAtTime(62 + lv*70, now, 0.1);
+      }
+    }
+    function gripStop(){
+      if (!grip) return;
+      const r = grip; grip = null;
+      r.g.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.06);
+      setTimeout(()=>{ try{ (r.src || r.n).stop(); if (r.lfo) r.lfo.stop(); if (r.o) r.o.stop(); }catch(e){} }, 260);
+      synthThud('release', 0.6);                                     // 놓을 때 "퐁"
+    }
+    // 볼륨 · 음소거
+    function setVolume(v){ level = Math.min(1, Math.max(0, v)); if (level > 0) muted = false; savePrefs(); applyMaster(); }
+    function setMuted(m){ muted = !!m; savePrefs(); applyMaster(); }
+    function preview(){ ensure(); if (ctx && !muted && level > 0) synthThud('release', 0.8); }   // 슬라이더를 놓았을 때 확인용 소리
+    return {
+      ensure, load, press:(p)=>hit('press',p), release:()=>hit('release'), startRub, updateRub, stopRub,
+      gripStart, gripUpdate, gripStop, setVolume, setMuted, preview,
+      getVolume:()=>level, isMuted:()=>muted
+    };
   })();
   function haptic(ms){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 
@@ -1238,7 +1328,7 @@ const MALANGIS = [
   const contacts = new Map();                                   // pointerId → 접촉(손가락/손바닥)
   let orbit = null;
   let raycaster, ndc, plane, vA, vB, vC;
-  let tool = 'finger';
+  
 
   function makeShadowTexture(){
     const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -1419,6 +1509,7 @@ const MALANGIS = [
   }
   function resetInteraction(){
     contacts.clear(); orbit = null; Sound.stopRub();
+    setGrip(false); gripLevel = 0;
   }
 
   // ---------- 입력 ----------
@@ -1447,14 +1538,13 @@ const MALANGIS = [
       const n = hit.face.normal;
       const rd = raycaster.ray.direction;
       vA.set(rd.x*0.65 - n.x*0.35, rd.y*0.65 - n.y*0.35, rd.z*0.65 - n.z*0.35).normalize();   // 손가락이 파고드는 방향
-      const palm = tool==='palm';
       const wasEmpty = contacts.size===0;
       contacts.set(e.pointerId, {
         id:e.pointerId, t:0, h:0,
         ax:hit.point.x, ay:hit.point.y, az:hit.point.z,
         dx:vA.x, dy:vA.y, dz:vA.z,
-        r: palm ? 0.95 : (e.pointerType==='touch' ? 0.52 : 0.44),
-        depthScale: palm ? 0.85 : 1.0,
+        r: e.pointerType==='touch' ? 0.52 : 0.44,
+        depthScale: 1.0,
         lx:0, ly:0, lz:0, tlx:0, tly:0, tlz:0,
         cx:e.clientX, cy:e.clientY, speed:0
       });
@@ -1503,7 +1593,17 @@ const MALANGIS = [
     canvas.addEventListener('pointercancel', release);
     canvas.addEventListener('lostpointercapture', release);
   }
-
+  // ---------- 꽉 쥐기 (스페이스바 / ✊ 버튼) ----------
+  let gripHeld = false, gripLevel = 0;
+  function setGrip(on){
+    on = !!on;
+    if (on === gripHeld) return;
+    if (on && (!ready || !playScreen.classList.contains('active'))) return;
+    gripHeld = on;
+    const btn = $('gripBtn'); if (btn) btn.classList.toggle('active', on);
+    if (on){ Sound.ensure(); bumpCount(); Sound.gripStart(); haptic(20); }
+    else { Sound.gripStop(); haptic(8); }
+  }
   // ---------- 루프 ----------
   let last = performance.now();
   function frame(now){
@@ -1524,7 +1624,10 @@ const MALANGIS = [
       list.push(c);
     });
 
-    const res = body.step(dt, list);
+    gripLevel += ((gripHeld ? 1 : 0) - gripLevel) * (1 - Math.exp(-dt*(gripHeld ? 7 : 11)));   // 쥐는 힘이 부드럽게 오르내림
+    if (!gripHeld && gripLevel < 0.003) gripLevel = 0;
+    const res = body.step(dt, list, gripLevel, now/1000);
+    if (gripHeld) Sound.gripUpdate(gripLevel);
     if (res.active){
       posAttr.needsUpdate = true; strainAttr.needsUpdate = true;
       geo.computeVertexNormals();
@@ -1574,17 +1677,51 @@ const MALANGIS = [
     $('backBtn').addEventListener('click', ()=>{
       openToken++;                                    // 진행 중이던 로딩 취소
       ready = false;
+      setGrip(false);
       if (renderer) resetInteraction();
       playScreen.classList.remove('active');
       homeScreen.classList.add('active');
       if (current) refreshTag(current);
     });
-    document.querySelectorAll('.tool').forEach((btn)=>{
-      btn.addEventListener('click', ()=>{
-        tool = btn.dataset.tool;
-        document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('active', b===btn));
-      });
+
+    // 꽉 쥐기: 스페이스바를 누르고 있는 동안 / 화면의 ✊ 버튼을 누르고 있는 동안
+    const playActive = ()=> playScreen.classList.contains('active');
+    window.addEventListener('keydown', (e)=>{
+      if (e.code !== 'Space' || !playActive()) return;
+      e.preventDefault();                             // 페이지 스크롤 / 버튼 클릭 방지
+      if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
+      if (!e.repeat) setGrip(true);
     });
+    window.addEventListener('keyup', (e)=>{
+      if (e.code !== 'Space') return;
+      if (playActive()) e.preventDefault();
+      setGrip(false);
+    });
+    window.addEventListener('blur', ()=> setGrip(false));
+    document.addEventListener('visibilitychange', ()=>{ if (document.hidden) setGrip(false); });
+    const gb = $('gripBtn');
+    gb.addEventListener('pointerdown', (e)=>{ e.preventDefault(); try { gb.setPointerCapture(e.pointerId); } catch(_){} Sound.ensure(); setGrip(true); });
+    ['pointerup','pointercancel','lostpointercapture'].forEach((ev)=> gb.addEventListener(ev, ()=> setGrip(false)));
+    gb.addEventListener('contextmenu', (e)=> e.preventDefault());
+
+    // 볼륨: 슬라이더 + 음소거 토글 (설정은 브라우저에 기억)
+    const volEl = $('volRange'), muteEl = $('muteBtn');
+    function refreshVol(){
+      const v = Sound.getVolume(), m = Sound.isMuted();
+      volEl.value = Math.round(v*100);
+      muteEl.textContent = (m || v === 0) ? '🔇' : (v < 0.5 ? '🔉' : '🔊');
+      muteEl.setAttribute('aria-pressed', m ? 'true' : 'false');
+      volEl.style.opacity = m ? 0.45 : 1;
+    }
+    volEl.addEventListener('input', ()=>{ Sound.setVolume(volEl.value/100); refreshVol(); });
+    volEl.addEventListener('change', ()=> Sound.preview());
+    muteEl.addEventListener('click', ()=>{
+      if (Sound.getVolume() === 0){ Sound.setVolume(0.8); Sound.setMuted(false); }
+      else Sound.setMuted(!Sound.isMuted());
+      refreshVol(); muteEl.blur();
+    });
+    refreshVol();
+
     loadThree();                                      // 홈 화면에서 미리 받아 둠
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
