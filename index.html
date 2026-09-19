@@ -68,7 +68,8 @@
   .ctl small { font-weight: 600; color: var(--sub); }
   .ctl.active { background: var(--brand); color: #fff; transform: scale(0.96); }
   .ctl.active small { color: #fff; }
-  @media (hover: none) { .ctl small { display: none; } }
+  @media (hover: none) { .ctl small.key { display: none; } }
+  .ctl[hidden] { display: none; }
   .vol { display: flex; align-items: center; gap: 6px; background: var(--card); border-radius: 999px; padding: 4px 14px 4px 6px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
   .vol .icon { background: transparent; box-shadow: none; padding: 6px 8px; font-size: 16px; touch-action: manipulation; }
@@ -97,7 +98,8 @@
   <p class="sub" style="margin-top:0">꾹 누를수록 깊이 들어가요 (두 손가락도 가능)</p>
   <div class="stage" id="stage"><canvas id="c"></canvas><div class="loading" id="loading">3D 말랑이 빚는 중… 🫧</div></div>
   <div class="controls">
-    <button class="ctl" id="gripBtn" type="button">✊ 꽉 쥐기 <small>(스페이스바)</small></button>
+    <button class="ctl" id="gripBtn" type="button">✊ 꽉 쥐기 <small class="key">(스페이스바)</small></button>
+    <button class="ctl" id="waxReset" type="button" hidden>🔁 새 왁뿌볼 <small id="waxPct">0%</small></button>
     <div class="vol"><button class="ctl icon" id="muteBtn" type="button" aria-label="소리 켜기/끄기">🔊</button><input id="volRange" type="range" min="0" max="100" value="100" aria-label="볼륨"></div>
   </div>
   <div class="counter">오늘 만지기 <span id="count">0</span>번</div>
@@ -135,10 +137,13 @@
  *  │ gloss  : 눌렀을 때 생기는 반짝임 (0~1). 기본: 돔 1 / 실루엣 0(무광)
  *  │ whiten : 눌려서 얇아진 곳이 뽀얘지는 정도 (0~1). 기본: 돔 1 / 실루엣 0
  *  │ shadow : false 로 두면 바닥 그림자를 그리지 않아요 (기본: 그림자 있음)
+ *  │ wax    : (shape:'sphere' 전용) 왁뿌볼 — 겉면 왁스가 조각으로 나뉘어 금이 가고 깨져 떨어져요. 누르거나 문지르거나 스페이스바로 꽉 쥐면 깨져요
+ *  │          { color:'#f3ead7' (왁스 색), core:'#ffb8c9' (깨진 자리로 보이는 속 색), hardness:1 (클수록 단단) }
+ *  │          img 를 생략하면 왁스 색 한 가지, img(구 전개도)를 주면 그 사진이 왁스 겉면이 돼요. sfx.crack = 깨지는 소리
  *  │ shape:'sphere' : 완전한 공 (뽁뽁이 공처럼 둥근 물체). img 는 사진이 아니라 "구 전개도"(가로 360° × 세로 180° 로 펼친 이미지),
  *  │          thumb 은 필수(홈 카드용 작은 사진), radius 로 크기 조절(기본 1.25) 
  *  │ sfx    : 효과음 { press, release, rub, squeeze, volume }
- *  │            press  = 누를 때, release = 뗄 때, rub = 문지를 때 계속 나는 소리(반복 재생), squeeze = 스페이스바로 꽉 쥐는 동안 계속 나는 소리(반복 재생)
+ *  │            press  = 누를 때, release = 뗄 때, rub = 문지를 때 계속 나는 소리(반복 재생), squeeze = 스페이스바로 꽉 쥐는 동안 계속 나는 소리(반복 재생),  crack = (왁뿌볼) 왁스가 깨질 때 나는 소리
  *  │            각각 'asset:키' / 파일 경로 / 주소. 하나라도 없으면 그 소리만 기본 합성음이 나와요
  *  │ body   : (돔 전용) 사진 속 몸통 타원 { cx, cy, rx, ry } (픽셀).  생략하면 투명 배경을 보고 자동 감지
  *  │ dome   : (돔 전용) 3D 몸통 크기 { A, C, Hup, Hlo }.            생략하면 사진 비율에 맞춰 자동 계산
@@ -195,6 +200,14 @@ const MALANGIS = [
     thumb: 'asset:bubble_thumb',    // 홈 화면 카드에 쓸 작은 사진
     shape: 'sphere',                // 완전한 공
     shadow: false                   // 바닥 그림자 없음
+  }
+  ,{
+    id: 'wax',
+    name: '왁뿌볼',
+    shape: 'sphere',
+    wax: { color: '#f3ead7', core: '#ffb8c9' },   // 겉면 왁스 색 / 깨진 자리로 보이는 속 색
+    shadow: false
+    // sfx: { crack: 'asset:wax_crack' }            ← 왁스 깨지는 소리 파일이 생기면 여기에
   }
   // ,{ ...새 말랑이... }
 ];
@@ -579,6 +592,9 @@ const MALANGIS = [
       uniform float uWhiten;    // 눌려서 얇아진 곳이 뽀얘지는 정도 (0 = 없음)
       uniform float uSphere;    // 1 = 구 말랑이: 사진이 아니라 구 전개도(가로 360° × 세로 180°)를 몸통에 감싼다
       uniform float uSheet;     // 1 = 실루엣(판) 몸통: 뒷면에도 사진을 그대로 입힌다
+      uniform float uWaxLit;    // 1 = 사진 없이 색만 있는 왁뿌볼: 은은한 조명 음영과 왁스 광택을 직접 넣는다
+      uniform float uWax;       // 1 = 왁뿌볼: 겉면이 조각으로 나뉘어 금이 가고, 깨진 조각은 떨어져 나간다
+      uniform vec4 uSites[48];  // 조각 중심(xyz) + 부서진 정도(w: 0~1, 1이면 깨져서 사라짐)
       varying vec3 vRefQ;
       varying vec3 vRest;
       varying vec3 vNRest;
@@ -599,6 +615,24 @@ const MALANGIS = [
       }
 
       void main(){
+        // 왁뿌볼: 가장 가까운 조각(셀)을 찾아서, 깨진 조각은 그리지 않고 금·모서리를 표시한다
+        float wxCrack = 0.0, wxRim = 0.0, wxM = 0.0;
+        if (uWax > 0.5){
+          vec3 dw = normalize(vRest);
+          float d1 = 9.0, d2 = 9.0, m1 = 0.0, m2 = 0.0;
+          for (int i = 0; i < 48; i++){
+            float dd = 1.0 - dot(dw, uSites[i].xyz);
+            if (dd < d1){ d2 = d1; m2 = m1; d1 = dd; m1 = uSites[i].w; }
+            else if (dd < d2){ d2 = dd; m2 = uSites[i].w; }
+          }
+          if (m1 >= 1.0) discard;                                            // 부서져 떨어져 나간 조각 → 안쪽 속이 보인다
+          float edge = d2 - d1 + (h31(dw*31.0) - 0.5)*0.0015;               // 조각 사이 경계(약간 삐뚤빼뚤)
+          float dmg = max(m1, m2);
+          float wLine = 0.0007 + 0.011*min(dmg, 1.0);
+          wxCrack = (1.0 - smoothstep(0.0, wLine, edge)) * smoothstep(0.04, 0.25, dmg);
+          wxRim   = (m2 >= 1.0) ? (1.0 - smoothstep(0.0, 0.006, edge)) : 0.0;   // 이웃 조각이 깨졌으면 그쪽 단면이 밝게 보임
+          wxM     = min(m1, 1.0);
+        }
         // 기준 카메라로 투영한 위치 → 원본 이미지의 픽셀 좌표
         vec2 ndc = vRefQ.xy / vRefQ.z;
         vec2 px  = uImg.zw + vec2(ndc.x - uMapXf.x, -(ndc.y - uMapXf.y)) / uMapXf.z;
@@ -608,7 +642,7 @@ const MALANGIS = [
           float lu  = atan(dr.x, dr.z)/6.2831853 + 0.5;
           float lu2 = fract(lu + 0.5) - 0.5;                 // 이음선(±180°)에서 무늬가 갈라져 보이지 않게 더 매끈한 쪽을 고른다
           uv = vec2(fwidth(lu) <= fwidth(lu2) ? lu : lu2, asin(clamp(dr.y, -1.0, 1.0))/3.14159265 + 0.5);
-        }      
+        }
         vec3 tex  = texture2D(uMap, uv).rgb;
         if (uSheet > 0.5 && uHasBack > 0.5){                 // 앞면/뒷면에 서로 다른 사진: 보는 쪽에 맞는 사진을 고른다
           vec3 texBack = texture2D(uMapBack, uv).rgb;
@@ -621,6 +655,7 @@ const MALANGIS = [
         vec3 Vref = normalize(uRefCam - vRest);
         float facing = dot(Nr, Vref);
         float wFront = (uSheet > 0.5 || uSphere > 0.5) ? 1.0 : smoothstep(0.05, 0.28, facing);       // 기준 시점에서 옆·뒤로 넘어가는 면은 늘어난 이미지 대신 평균색
+
         // 뒷면: 평균 민트색 + 원본 느낌의 반짝이
         vec3 Vo = normalize(uCam - vRest);
         vec3 rd; float pk;
@@ -635,6 +670,9 @@ const MALANGIS = [
         vec3 L  = normalize(vec3(-0.45, 0.85, 0.55));
         back *= 0.80 + 0.30*(dot(n, L)*0.5 + 0.5);            // 뒷면에도 은은한 입체 음영
         vec3 col = mix(back, tex, wFront);
+        col = mix(col, vec3(0.97, 0.95, 0.90), 0.30*wxM);            // 금이 갈수록 뽀얗게
+        col *= 1.0 - 0.55*wxCrack;                                    // 금(어두운 실선)
+        col = mix(col, vec3(1.0, 0.99, 0.95), wxRim*0.8);             // 깨진 단면
 
         // 눌러서 바뀐 부분만 음영/하이라이트 추가 (정지 상태에서는 0 → 원본 그대로)
         vec3 Vc = normalize(uCam - vPos);
@@ -650,10 +688,75 @@ const MALANGIS = [
         float spec = (max(spNow - spRest, 0.0)*0.85 + max(wideNow - wideRest, 0.0)*0.16) * uGloss;
 
         if (uSheet > 0.5 && uHasBack < 0.5) col *= mix(0.84, 1.0, smoothstep(-0.15, 0.15, facing));    // 뒷면 사진이 없으면 살짝 어둡게
+        if (uWaxLit > 0.5){                                           // 왁스 겉면: 부드러운 음영 + 매끈한 광택
+          col *= 0.74 + 0.36*max(dot(n, L), 0.0);
+          col += vec3(pow(max(dot(n, H), 0.0), 60.0))*0.28*(1.0 - wxCrack);
+        }
         col *= shade * vol;
         col = mix(col, vec3(0.90, 1.0, 0.92), vStrain*0.38*uWhiten);    // 눌려서 얇아진 곳은 뽀얗게
         col += vec3(spec);
         gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+      }
+    `
+  };
+
+  // ---- 왁뿌볼: 안쪽의 말랑한 속(왁스가 깨진 자리로 보임) ----
+  const CORE_SRC = {
+    vertex: `
+      uniform float uInset;
+      varying vec3 vN;
+      varying vec3 vPos;
+      void main(){
+        vec3 p = position - normal*uInset;                 // 겉면(왁스)보다 살짝 안쪽
+        vN = normal; vPos = p;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }
+    `,
+    fragment: `
+      uniform vec3 uCoreColor;
+      uniform vec3 uCam;
+      varying vec3 vN;
+      varying vec3 vPos;
+      void main(){
+        vec3 n = normalize(vN);
+        vec3 V = normalize(uCam - vPos);
+        vec3 L = normalize(vec3(-0.45, 0.85, 0.55));
+        float diff = 0.55 + 0.45*max(dot(n, L), 0.0);
+        float fres = pow(1.0 - max(dot(n, V), 0.0), 2.5);
+        float spec = pow(max(dot(n, normalize(L + V)), 0.0), 40.0);
+        vec3 col = uCoreColor*diff + vec3(1.0, 0.92, 0.96)*fres*0.22 + vec3(spec)*0.30;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `
+  };
+
+  // ---- 왁뿌볼: 떨어지는 왁스 부스러기 (점 스프라이트) ----
+  const SHARD_SRC = {
+    vertex: `
+      attribute float aAlpha;
+      attribute float aSize;
+      attribute float aRot;
+      uniform float uPointScale;
+      varying float vAlpha;
+      varying float vRot;
+      void main(){
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = max(aSize*uPointScale/(-mv.z), 1.0) * step(0.01, aAlpha);
+        vAlpha = aAlpha; vRot = aRot;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragment: `
+      uniform vec3 uShardColor;
+      varying float vAlpha;
+      varying float vRot;
+      void main(){
+        vec2 p = gl_PointCoord - 0.5;
+        float c = cos(vRot), s = sin(vRot);
+        p = vec2(c*p.x - s*p.y, s*p.x + c*p.y);
+        if (abs(p.x) + abs(p.y)*1.7 > 0.5 || vAlpha < 0.01) discard;      // 뾰족한 조각 모양
+        vec3 col = uShardColor * (0.82 + 0.35*(0.5 - p.y));
+        gl_FragColor = vec4(col, vAlpha);
       }
     `
   };
@@ -1064,7 +1167,7 @@ const MALANGIS = [
   }
   const LIST = [];
   (typeof MALANGIS !== 'undefined' ? MALANGIS : []).forEach((m)=>{
-    if (!m || !m.id || !m.name || !m.img){ console.warn('[말랑이] id / name / img 는 필수예요. 이 항목은 건너뜁니다:', m); return; }
+    if (!m || !m.id || !m.name || (!m.img && !m.wax)){ console.warn('[말랑이] id / name / img 는 필수예요. 이 항목은 건너뜁니다:', m); return; }
     if (LIST.some(x=>x.id===m.id)){ console.warn('[말랑이] id 가 중복이에요:', m.id); return; }
     LIST.push(Object.assign({}, DEFAULTS, m));
   });
@@ -1119,7 +1222,8 @@ const MALANGIS = [
       btn.className = 'malangi-card'; btn.type = 'button';
       const th = document.createElement('div'); th.className = 'thumb';
       const im = document.createElement('img'); im.alt = m.name;
-      if (m.thumb || (m.shape !== 'silhouette' && m.shape !== 'sphere')) im.src = asset(m.thumb || m.img);
+      if (m.wax && !m.thumb) im.src = Wax.thumb(m.wax);                       // 왁뿌볼: 사진 없이 색으로 만든 썸네일
+      else if (m.thumb || (m.shape !== 'silhouette' && m.shape !== 'sphere')) im.src = asset(m.thumb || m.img);
       else loadImage(m).then((img)=>{                                   // 실루엣 말랑이: 배경을 지운 사진을 썸네일로
         if (!img) return;
         setTimeout(()=>{ try { im.src = makeCutoutCanvas(img, getMask(m, img), 160).toDataURL(); } catch(e){ console.warn('[말랑이] 썸네일 생성 실패:', m.id, e); } }, 30);
@@ -1185,7 +1289,10 @@ const MALANGIS = [
     }
     return imgCache.get(key);
   }
-  function loadImage(m){ return loadImageSrc(m.id, m.img); }
+  function loadImage(m){
+    if (!m.img && m.wax) return Promise.resolve(Wax.solidImage(m.wax.color));       // 왁뿌볼: 사진이 없으면 왁스 색 한 가지로
+    return loadImageSrc(m.id, m.img);
+  }
   function loadImageBack(m){ return m.imgBack ? loadImageSrc(m.id + ':back', m.imgBack) : Promise.resolve(null); }
 
   
@@ -1224,7 +1331,7 @@ const MALANGIS = [
       ensure();
       if (!ctx || !m.sfx) return;
       vol = m.sfx.volume == null ? 1 : m.sfx.volume;
-      for (const key of ['press', 'release', 'rub', 'squeeze']){
+      for (const key of ['press', 'release', 'rub', 'squeeze', 'crack']){
         const src = asset(m.sfx[key]);
         if (!src) continue;
         try {
@@ -1348,18 +1455,216 @@ const MALANGIS = [
       setTimeout(()=>{ try{ (r.src || r.n).stop(); if (r.lfo) r.lfo.stop(); if (r.o) r.o.stop(); }catch(e){} }, 260);
       synthThud('release', 0.6);                                     // 놓을 때 "퐁"
     }
+    // 왁스가 깨지는 "바삭" (파일 crack 이 있으면 파일, 없으면 짧은 파열음을 여러 번 합성)
+    function crackSynth(p){
+      const t0 = ctx.currentTime, n = 2 + Math.floor(Math.random()*3);
+      for (let k=0;k<n;k++){
+        const t = t0 + k*(0.010 + Math.random()*0.028);
+        const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = 0.8 + Math.random()*0.8;
+        const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1500 + Math.random()*2500;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime((0.35 + Math.random()*0.3)*p, t + 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0005, t + 0.03 + Math.random()*0.03);
+        src.connect(hp).connect(g).connect(master); src.start(t, Math.random()*0.5); src.stop(t + 0.09);
+      }
+      const o = ctx.createOscillator(); o.type = 'sine';                       // 낮은 "딱" 울림
+      o.frequency.setValueAtTime(380, t0); o.frequency.exponentialRampToValueAtTime(140, t0 + 0.05);
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.0001, t0); og.gain.exponentialRampToValueAtTime(0.22*p, t0 + 0.004); og.gain.exponentialRampToValueAtTime(0.0005, t0 + 0.06);
+      o.connect(og).connect(master); o.start(t0); o.stop(t0 + 0.08);
+    }
+    function crack(p){
+      if (!ctx) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      p = p == null ? 1 : p;
+      if (bufs.crack) playSample(bufs.crack, vol*p, 0.92 + Math.random()*0.16); else crackSynth(p);
+    }
+    function tick(){                                                            // 금이 가기 시작할 때의 작은 "딱"
+      if (!ctx || bufs.crack) return;
+      const t = ctx.currentTime;
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.value = 1.2;
+      const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.025);
+      src.connect(hp).connect(g).connect(master); src.start(t, Math.random()*0.5); src.stop(t + 0.05);
+    }    
+    
     // 볼륨 · 음소거
     function setVolume(v){ level = Math.min(1, Math.max(0, v)); if (level > 0) muted = false; savePrefs(); applyMaster(); }
     function setMuted(m){ muted = !!m; savePrefs(); applyMaster(); }
     function preview(){ ensure(); if (ctx && !muted && level > 0) synthThud('release', 0.8); }   // 슬라이더를 놓았을 때 확인용 소리
     return {
       ensure, load, press:(p)=>hit('press',p), release:()=>hit('release'), startRub, updateRub, stopRub,
-      gripStart, gripUpdate, gripStop, setVolume, setMuted, preview,
+      gripStart, gripUpdate, gripStop, crack, tick, setVolume, setMuted, preview,
       getVolume:()=>level, isMuted:()=>muted
     };
   })();
   function haptic(ms){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
 
+  // =====================================================================
+  //  왁뿌볼: 겉면 왁스가 조각으로 나뉘어 금이 가고, 깨져서 떨어져 나가는 기능
+  //   WaxSim : 조각(48개)의 피해·깨짐·떨어지는 부스러기 계산 (Three.js 와 무관한 순수 JS)
+  //   Wax    : 안쪽 속 · 부스러기 · 소리 · 화면 연결
+  // =====================================================================
+  const WaxSim = (function(){
+    const N = 48, MAXS = 360;
+    function create(){
+      const sites = new Float32Array(N*4), rate = new Float32Array(N);        // sites: 조각 중심 xyz + 부서진 정도 w(셰이더로 그대로 전달)
+      const broken = new Uint8Array(N), half = new Uint8Array(N);
+      const sp = new Float32Array(MAXS*3), sv = new Float32Array(MAXS*3);
+      const alpha = new Float32Array(MAXS), size = new Float32Array(MAXS), rot = new Float32Array(MAXS), life = new Float32Array(MAXS);
+      let nBroken = 0, cursor = 0, radius = 1.25;
+      let seed = 987654321;
+      const rnd = ()=>{ seed = (seed*16807) % 2147483647; return seed/2147483647; };
+      const ga = Math.PI*(3 - Math.sqrt(5));
+      for (let i=0;i<N;i++){                                                  // 피보나치 구 + 살짝 흔들기 = 고르지만 자연스러운 조각 배치
+        const y = 1 - 2*(i+0.5)/N + (rnd()-0.5)*0.10, r = Math.sqrt(Math.max(0, 1-y*y)), th = ga*i + (rnd()-0.5)*0.5;
+        const x = Math.cos(th)*r, z = Math.sin(th)*r, l = Math.hypot(x,y,z);
+        sites[i*4] = x/l; sites[i*4+1] = y/l; sites[i*4+2] = z/l;
+        rate[i] = 0.6 + rnd()*0.9;                                            // 조각마다 깨지기 쉬운 정도가 조금씩 달라요
+      }
+      function reset(rad){
+        radius = rad || radius;
+        for (let i=0;i<N;i++) sites[i*4+3] = 0;
+        broken.fill(0); half.fill(0); nBroken = 0;
+        alpha.fill(0); size.fill(0); life.fill(0);
+      }
+      function hitAt(dx, dy, dz, amount, spread){                             // 방향(단위벡터) 근처 조각들에 피해
+        for (let i=0;i<N;i++){
+          if (broken[i]) continue;
+          const dot = dx*sites[i*4] + dy*sites[i*4+1] + dz*sites[i*4+2];
+          const ang = Math.acos(Math.min(1, Math.max(-1, dot)));
+          const w = Math.exp(-(ang/spread)*(ang/spread));
+          if (w < 0.02) continue;
+          sites[i*4+3] += amount*w*rate[i];
+        }
+      }
+      function hitAll(amount){ for (let i=0;i<N;i++) if (!broken[i]) sites[i*4+3] += amount*rate[i]; }
+      function spawn(i){                                                      // 깨진 조각 자리에서 부스러기가 튀어 나온다
+        const nx = sites[i*4], ny = sites[i*4+1], nz = sites[i*4+2];
+        for (let k=0;k<8;k++){
+          const j = cursor; cursor = (cursor+1) % MAXS;
+          const tx = Math.random()-0.5, ty = Math.random()-0.5, tz = Math.random()-0.5;
+          const sp0 = 0.5 + Math.random()*1.5;
+          sp[j*3] = nx*radius*0.98 + tx*0.25; sp[j*3+1] = ny*radius*0.98 + ty*0.25; sp[j*3+2] = nz*radius*0.98 + tz*0.25;
+          sv[j*3] = nx*sp0 + tx*1.4; sv[j*3+1] = ny*sp0 + ty*1.4 + 0.7; sv[j*3+2] = nz*sp0 + tz*1.4;
+          life[j] = 1.0 + Math.random()*0.8; alpha[j] = 1;
+          size[j] = 0.05 + Math.random()*0.08; rot[j] = Math.random()*6.283;
+        }
+      }
+      function step(dt){                                                      // 깨짐 판정 + 부스러기 이동. { brokeNow, ticksNow }
+        let brokeNow = 0, ticksNow = 0;
+        for (let i=0;i<N;i++){
+          if (broken[i]) continue;
+          const d = sites[i*4+3];
+          if (!half[i] && d > 0.5){ half[i] = 1; ticksNow++; }
+          if (d >= 1){ broken[i] = 1; sites[i*4+3] = 1; nBroken++; brokeNow++; spawn(i); }
+        }
+        let alive = 0;
+        for (let j=0;j<MAXS;j++){
+          if (life[j] <= 0) continue;
+          life[j] -= dt; alive++;
+          if (life[j] <= 0){ alpha[j] = 0; continue; }
+          sv[j*3+1] -= 4.5*dt;                                                // 중력
+          sp[j*3] += sv[j*3]*dt; sp[j*3+1] += sv[j*3+1]*dt; sp[j*3+2] += sv[j*3+2]*dt;
+          rot[j] += dt*3; alpha[j] = Math.min(1, life[j]/0.4);
+        }
+        return { brokeNow, ticksNow, alive };
+      }
+      return { N, sites, sp, alpha, size, rot, reset, hitAt, hitAll, step,
+               nBroken:()=>nBroken, softness:()=>0.22 + 0.78*Math.min(1, nBroken/(N*0.45)) };   // 껍질이 온전할수록 단단
+    }
+    return { create, N };
+  })();
+
+  const Wax = (function(){
+    const sim = WaxSim.create();
+    let on = false, cfg = {}, R = 1.25, hard = 1, done = false, lastPct = -1;
+    let core = null, coreMat = null, pts = null, ptsGeo = null, ptsMat = null;
+
+    function attach(scene){                                                   // 안쪽 속 메시와 부스러기 점을 한 번만 만든다
+      if (core) return;
+      coreMat = new THREE.ShaderMaterial({
+        uniforms:{ uInset:{ value:0.06 }, uCoreColor:{ value:new THREE.Vector3(1, 0.72, 0.79) }, uCam:uCam },
+        vertexShader:CORE_SRC.vertex, fragmentShader:CORE_SRC.fragment
+      });
+      core = new THREE.Mesh(new THREE.BufferGeometry(), coreMat);
+      core.frustumCulled = false; core.visible = false; scene.add(core);
+      ptsGeo = new THREE.BufferGeometry();
+      ptsGeo.setAttribute('position', new THREE.BufferAttribute(sim.sp, 3).setUsage(THREE.DynamicDrawUsage));
+      ptsGeo.setAttribute('aAlpha',   new THREE.BufferAttribute(sim.alpha, 1).setUsage(THREE.DynamicDrawUsage));
+      ptsGeo.setAttribute('aSize',    new THREE.BufferAttribute(sim.size, 1).setUsage(THREE.DynamicDrawUsage));
+      ptsGeo.setAttribute('aRot',     new THREE.BufferAttribute(sim.rot, 1).setUsage(THREE.DynamicDrawUsage));
+      ptsMat = new THREE.ShaderMaterial({
+        uniforms:{ uPointScale:{ value:900 }, uShardColor:{ value:new THREE.Vector3(1, 0.98, 0.9) } },
+        vertexShader:SHARD_SRC.vertex, fragmentShader:SHARD_SRC.fragment, transparent:true, depthWrite:false
+      });
+      pts = new THREE.Points(ptsGeo, ptsMat);
+      pts.frustumCulled = false; pts.visible = false; scene.add(pts);
+    }
+    function report(){
+      const pct = Math.round(sim.nBroken()/sim.N*100);
+      if (pct !== lastPct){ lastPct = pct; const el = $('waxPct'); if (el) el.textContent = pct + '%'; }
+      if (!done && sim.nBroken() >= sim.N){ done = true; showMsg('왁스를 전부 깼어요! 🎉'); }
+    }
+    function enable(m, radius, geo, scene){
+      attach(scene);
+      cfg = m.wax || {}; R = radius; hard = 1/(cfg.hardness || 1);
+      const cc = new THREE.Color(cfg.core || '#ffb8c9'); coreMat.uniforms.uCoreColor.value.set(cc.r, cc.g, cc.b);
+      const sc = new THREE.Color(cfg.color || '#f3ead7'); ptsMat.uniforms.uShardColor.value.set(sc.r, sc.g, sc.b);
+      coreMat.uniforms.uInset.value = 0.05*R;
+      core.geometry = geo; core.visible = true; pts.visible = true;
+      sim.reset(R); done = false; lastPct = -1; on = true; U.uWax.value = 1; U.uWaxLit.value = m.img ? 0 : 1;
+      const btn = $('waxReset'); if (btn) btn.hidden = false;
+      report();
+    }
+    function disable(){
+      on = false; U.uWax.value = 0; U.uWaxLit.value = 0;
+      if (core){ core.visible = false; pts.visible = false; }
+      const btn = $('waxReset'); if (btn) btn.hidden = true;
+    }
+    function reset(){ if (!on) return; sim.reset(R); done = false; lastPct = -1; report(); Sound.tick(); showMsg('새 왁뿌볼이에요 🫧'); }
+    // 매 프레임: 누르는 손가락·쥐는 힘이 왁스에 피해를 주고, 깨지면 소리·진동·부스러기
+    function update(dt, list, grip){
+      if (!on) return;
+      for (const c of list){
+        const px = c.ax + c.lx, py = c.ay + c.ly, pz = c.az + c.lz, l = Math.hypot(px, py, pz) || 1;
+        const press = Math.min(1.2, c.h/0.55);
+        if (!c.waxHit){ c.waxHit = true; sim.hitAt(px/l, py/l, pz/l, 0.28, 0.45); }               // 처음 내리치는 순간
+        const boost = 1 + Math.min(1.5, c.speed*0.001);                                          // 문지르면 더 빨리 깨짐
+        sim.hitAt(px/l, py/l, pz/l, (0.6 + 1.6*press)*dt*hard*boost, 0.50);
+      }
+      if (grip > 0.02) sim.hitAll(0.5*grip*dt*hard);                                           // 꽉 쥐면 여기저기서 와삭와삭
+      const r = sim.step(dt);
+      if (r.brokeNow){ Sound.crack(Math.min(1, 0.45 + 0.2*r.brokeNow)); haptic(6); }
+      else if (r.ticksNow) Sound.tick();
+      if (r.alive || r.brokeNow){
+        const at = ptsGeo.attributes;
+        at.position.needsUpdate = true; at.aAlpha.needsUpdate = true; at.aSize.needsUpdate = true; at.aRot.needsUpdate = true;
+      }
+      report();
+    }
+    function onResize(heightPx){ if (ptsMat) ptsMat.uniforms.uPointScale.value = heightPx/(2*Math.tan(15*Math.PI/180)); }
+    // 사진이 없을 때 쓰는 단색 "사진"과 홈 카드용 썸네일
+    function solidImage(color){
+      const c = document.createElement('canvas'); c.width = 32; c.height = 16;
+      const g = c.getContext('2d'); g.fillStyle = color || '#f3ead7'; g.fillRect(0, 0, 32, 16);
+      c.naturalWidth = 32; c.naturalHeight = 16;
+      return c;
+    }
+    function thumb(w){
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d');
+      const gr = g.createRadialGradient(46, 42, 6, 64, 64, 62);
+      gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.35, (w && w.color) || '#f3ead7'); gr.addColorStop(1, '#c9bda2');
+      g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 60, 0, Math.PI*2); g.fill();
+      g.strokeStyle = 'rgba(90,70,50,0.35)'; g.lineWidth = 2; g.beginPath();
+      g.moveTo(58, 8); g.lineTo(70, 40); g.lineTo(56, 62); g.lineTo(74, 96); g.moveTo(70, 40); g.lineTo(100, 52); g.stroke();
+      return c.toDataURL();
+    }
+    return { enable, disable, reset, update, onResize, solidImage, thumb, get on(){ return on; }, sites:sim.sites, softness:()=>sim.softness() };
+  })();
   // =====================================================================
   //  3D 장면 (렌더러는 한 번만 만들고, 말랑이가 바뀔 때 몸통·사진·카메라만 교체)
   // =====================================================================
@@ -1369,7 +1674,7 @@ const MALANGIS = [
   const uCam = { value: null }, uTime = { value: 0 };
   const U = {                                                   // 셰이더 uniform (말랑이별로 값만 교체)
     uMap:{ value:null }, uMapBack:{ value:null }, uHasBack:{ value:0 }, uCam:uCam, uRefCam:{ value:null }, uRefVP:{ value:null },
-    uMapXf:{ value:null }, uImg:{ value:null }, uTime:uTime, uSheet:{ value:0 }, uSphere:{ value:0 }, uGloss:{ value:1 }, uWhiten:{ value:1 }
+    uMapXf:{ value:null }, uImg:{ value:null }, uTime:uTime, uSheet:{ value:0 }, uSphere:{ value:0 }, uWax:{ value:0 }, uWaxLit:{ value:0 }, uSites:{ value:Wax.sites }, uGloss:{ value:1 }, uWhiten:{ value:1 }
   };
   let EL0 = 0.70, DIST = 6.0;                                   // 기준 카메라 = 사진이 찍힌 시점
   let az = 0, el = EL0, dist = DIST;                            // 화면 카메라 (드래그로 회전)
@@ -1505,6 +1810,8 @@ const MALANGIS = [
     newGeo.computeBoundingSphere();
     const oldGeo = geo; geo = newGeo; mesh.geometry = geo;
     if (oldGeo) oldGeo.dispose();
+    if (isSphere && m.wax) Wax.enable(m, m.radius || 1.25, geo, scene);            // 왁뿌볼: 안쪽 속·부스러기 준비
+    else Wax.disable();
 
     // 기준 카메라(사진 시점) → 사진을 몸통에 투영하는 행렬과 좌표 매핑
     placeCamera(refCam, 0, EL0, DIST);
@@ -1570,6 +1877,7 @@ const MALANGIS = [
     const r = stageEl.getBoundingClientRect();
     if (!r.width || !r.height) return;
     renderer.setSize(r.width, r.height, false);
+    Wax.onResize(r.height*renderer.getPixelRatio());
     camera.aspect = r.width/r.height;
     camera.updateProjectionMatrix();
   }
@@ -1679,9 +1987,10 @@ const MALANGIS = [
 
     const list = [];
     let maxSpeed = 0;
+    const soft = Wax.on ? Wax.softness() : 1;                       // 왁뿌볼: 왁스가 깨질수록 말랑해진다
     contacts.forEach(c=>{
       c.t += dt;
-      const tgt = SquishCore.MAX_DEPTH*c.depthScale*(0.55 + 0.45*(1-Math.exp(-c.t/0.8)));   // 꾹 누를수록 깊이
+      const tgt = SquishCore.MAX_DEPTH*c.depthScale*soft*(0.55 + 0.45*(1-Math.exp(-c.t/0.8)));   // 꾹 누를수록 깊이 (왁스가 온전하면 단단해서 덜 들어감)
       c.h += (tgt - c.h)*(1-Math.exp(-dt*10));
       const k = 1-Math.exp(-dt*14);
       c.lx += (c.tlx-c.lx)*k; c.ly += (c.tly-c.ly)*k; c.lz += (c.tlz-c.lz)*k;
@@ -1692,7 +2001,8 @@ const MALANGIS = [
 
     gripLevel += ((gripHeld ? 1 : 0) - gripLevel) * (1 - Math.exp(-dt*(gripHeld ? 7 : 11)));   // 쥐는 힘이 부드럽게 오르내림
     if (!gripHeld && gripLevel < 0.003) gripLevel = 0;
-    const res = body.step(dt, list, gripLevel, now/1000);
+    if (Wax.on) Wax.update(dt, list, gripLevel);
+    const res = body.step(dt, list, gripLevel*soft, now/1000);
     if (gripHeld) Sound.gripUpdate(gripLevel);
     if (res.active){
       posAttr.needsUpdate = true; strainAttr.needsUpdate = true;
@@ -1787,6 +2097,9 @@ const MALANGIS = [
       refreshVol(); muteEl.blur();
     });
     refreshVol();
+
+    const wr = $('waxReset');                        // 왁뿌볼: 새 왁스 입히기
+    if (wr) wr.addEventListener('click', ()=>{ Wax.reset(); wr.blur(); });
 
     loadThree();                                      // 홈 화면에서 미리 받아 둠
   }
