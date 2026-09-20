@@ -224,7 +224,7 @@ const MALANGIS = [
     id: 'wax',
     name: '왁뿌볼',
     shape: 'sphere',
-    wax: { color: '#f3ead7', core: '#ffb8c9' },   // 겉면 왁스 색 / 깨진 자리로 보이는 속 색
+    wax: { color: '#f3ead7', core: '#ffb8c9', gripSpeed: 0.5 },   // 겉면 왁스 색 / 깨진 자리로 보이는 속 색
     shadow: false,
     sfx: { crack: 'asset:wax_crack' },        //    ← 왁스 깨지는 소리 파일이 생기면 여기에
     defaultSounds: true  
@@ -1822,7 +1822,7 @@ const MALANGIS = [
 
   const Wax = (function(){
     const sim = WaxSim.create();
-    let on = false, cfg = {}, R = 1.25, hard = 1, done = false, lastPct = -1;
+    let on = false, cfg = {}, R = 1.25, hard = 1, gripK = 1, done = false, lastPct = -1;
     let core = null, coreMat = null, pts = null, ptsGeo = null, ptsMat = null;
 
     function attach(scene){                                                   // 안쪽 속 메시와 부스러기 점을 한 번만 만든다
@@ -1853,6 +1853,7 @@ const MALANGIS = [
     function enable(m, radius, geo, scene){
       attach(scene);
       cfg = m.wax || {}; R = radius; hard = 1/(cfg.hardness || 1);
+      gripK = cfg.gripSpeed == null ? 1 : cfg.gripSpeed;            // 꽉 쥘 때 깨지는 속도 배율 (1 = 기본, 클수록 빨리, 작을수록 천천히)
       const cc = new THREE.Color(cfg.core || '#ffb8c9'); coreMat.uniforms.uCoreColor.value.set(cc.r, cc.g, cc.b);
       const sc = new THREE.Color(cfg.color || '#f3ead7'); ptsMat.uniforms.uShardColor.value.set(sc.r, sc.g, sc.b);
       coreMat.uniforms.uInset.value = 0.05*R;
@@ -1877,7 +1878,7 @@ const MALANGIS = [
         const boost = 1 + Math.min(1.5, c.speed*0.001);                                          // 문지르면 더 빨리 깨짐
         sim.hitAt(px/l, py/l, pz/l, (0.6 + 1.6*press)*dt*hard*boost, 0.50);
       }
-      if (grip > 0.02) sim.hitAll(0.5*grip*dt*hard);                                           // 꽉 쥐면 여기저기서 와삭와삭
+      if (grip > 0.02) sim.hitAll(0.5*grip*dt*hard*gripK);                                           // 꽉 쥐면 여기저기서 와삭와삭
       const r = sim.step(dt);
       if (r.brokeNow){ Sound.crack(Math.min(1, 0.45 + 0.2*r.brokeNow)); haptic(6); }
       else if (r.ticksNow) Sound.tick();
