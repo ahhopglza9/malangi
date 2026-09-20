@@ -82,6 +82,15 @@
   .counter span { color: var(--brand); font-weight: 800; }
   .msg { margin-top: 10px; font-size: 13px; color: var(--sub); min-height: 18px; transition: opacity 0.3s; }
   .hint { margin-top: 4px; font-size: 12px; color: var(--sub); opacity: 0.7; }
+  /* 크레딧: 어떤 말랑이를 만지든 터치 한 번에 1개씩 쌓여요 (오른쪽 위에 항상 표시) */
+  .credit { position: fixed; top: 12px; right: 14px; z-index: 6; display: flex; align-items: center; gap: 6px; pointer-events: none;
+    background: var(--card); border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .credit b { color: var(--brand); font-weight: 800; }
+  .credit .plus { position: absolute; left: 50%; top: 100%; font-size: 13px; font-weight: 800; color: var(--brand); opacity: 0; }
+  .credit.bump { animation: creditBump 0.22s ease-out; }
+  .credit .plus.show { animation: creditPlus 0.7s ease-out; }
+  @keyframes creditBump { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+  @keyframes creditPlus { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, 16px); } }
   /* 아래쪽 가로 말랑이 목록 (config 의 FEATURED 를 켰을 때만 보여요) */
   .strip { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; gap: 10px; overflow-x: auto;
     padding: 14px 14px calc(12px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; scrollbar-width: none;
@@ -103,6 +112,7 @@
 </style>
 </head>
 <body>
+<div class="credit" id="credit" aria-label="크레딧">🪙 <b id="creditNum">0</b><span class="plus" id="creditPlus">+1</span></div>
 
 <div class="screen active" id="homeScreen">
   <h1>🫧 말랑이 공방</h1>
@@ -1397,7 +1407,25 @@ const MALANGIS = [
   }
   let msgTimer = null;
   function showMsg(t){ msgEl.textContent = t; msgEl.style.opacity = '1'; clearTimeout(msgTimer); msgTimer = setTimeout(()=>{ msgEl.style.opacity = '0'; }, 2400); }
+  // ---------- 크레딧 (어떤 말랑이를 만지든 터치 한 번에 1개씩 쌓임 · 브라우저에 저장) ----------
+  const creditEl = $('credit'), creditNumEl = $('creditNum'), creditPlusEl = $('creditPlus');
+  let credits = 0;
+  try { const v = parseInt(localStorage.getItem('malangi_credits'), 10); if (v > 0) credits = v; } catch(e){}
+  function showCredits(bump){
+    creditNumEl.textContent = credits.toLocaleString();
+    if (bump){                                                      // 숫자가 통통 튀고 +1 이 떠올랐다 사라짐
+      creditEl.classList.remove('bump'); creditPlusEl.classList.remove('show');
+      void creditEl.offsetWidth;
+      creditEl.classList.add('bump'); creditPlusEl.classList.add('show');
+    }
+  }
+  function addCredit(n){
+    credits += n;
+    try { localStorage.setItem('malangi_credits', String(credits)); } catch(e){}
+    showCredits(true);
+  }
   function bumpCount(){
+    addCredit(1);                                       // 터치 한 번(누르기 1회 · 꽉 쥐기 1회)마다 크레딧 +1
     const n = getCount(current) + 1;
     setCount(current, n); countEl.textContent = n;
     const msg = current.messages && current.messages[n];
@@ -2301,6 +2329,7 @@ const MALANGIS = [
   }
   function init(){
     buildHome();
+    showCredits(false);                               // 저장해 둔 크레딧 표시
     $('backBtn').addEventListener('click', ()=>{
       openToken++;                                    // 진행 중이던 로딩 취소
       ready = false;
