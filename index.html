@@ -175,18 +175,20 @@
 // 기본(합성) 효과음을 쓸지 정해요.
 //   false = 아래 목록에서 정해 준 소리 파일만 재생해요. 파일을 정하지 않은 소리는 조용해요.
 //   true  = 파일이 없는 소리를 기본 효과음(툭·삐걱·바삭 등)으로 대신해요.
+//   말랑이마다 다르게 하려면 그 말랑이 항목에 defaultSounds: true (또는 false) 를 넣어요. 넣지 않은 말랑이는 위 값을 따라요.
 const DEFAULT_SOUNDS = false;
 
 const MALANGIS = [
-  /*{
+  {
     id: 'mandu',
     name: '만두 말랑이',
     img: 'asset:mandu',
     // 아래 두 값은 이 사진에 맞춰 직접 잰 값이에요. (생략해도 자동 계산됩니다)
     body: { cx: 278.6, cy: 232.5, rx: 270.1, ry: 217.3 },
     dome: { A: 1.22, C: 1.15, Hup: 1.00, Hlo: 0.50 },
-    camEl: 0.70
-  } */
+    camEl: 0.70,
+    defaultSounds: true
+  } 
   {
     id: 'butter',
     name: '버터 말랑이',
@@ -202,7 +204,8 @@ const MALANGIS = [
     shape: 'sphere',
     wax: { color: '#f3ead7', core: '#ffb8c9' },   // 겉면 왁스 색 / 깨진 자리로 보이는 속 색
     shadow: false,
-    sfx: { crack: 'asset:wax_crack' }        //    ← 왁스 깨지는 소리 파일이 생기면 여기에
+    sfx: { crack: 'asset:wax_crack' },        //    ← 왁스 깨지는 소리 파일이 생기면 여기에
+    defaultSounds: true  
   }
   ,{
     id: 'gun',
@@ -1476,7 +1479,8 @@ const MALANGIS = [
   const Sound = (function(){
     let ctx = null, master = null, noiseBuf = null, bufs = {}, vol = 1, sqInt = 0, token = 0, rub = null, grip = null;
     let level = 1, muted = false;                                   // 전체 볼륨 0~1 / 음소거 (브라우저에 기억)
-    const defaults = typeof DEFAULT_SOUNDS !== 'undefined' && !!DEFAULT_SOUNDS;   // 기본(합성) 효과음 사용 여부 — 기본은 꺼짐: 정해 준 소리 파일만 재생
+    const defaultsGlobal = typeof DEFAULT_SOUNDS !== 'undefined' && !!DEFAULT_SOUNDS;   // 전체 기본값: 기본(합성) 효과음 사용 여부 — 기본은 꺼짐
+    let defaults = defaultsGlobal;                                  // 지금 열려 있는 말랑이의 기본 효과음 사용 여부 (말랑이별 defaultSounds 가 있으면 그 값)
     try {
       const v = parseFloat(localStorage.getItem('malangi_volume'));
       if (!isNaN(v)) level = Math.min(1, Math.max(0, v));
@@ -1505,6 +1509,7 @@ const MALANGIS = [
     // 말랑이를 열 때 그 말랑이의 효과음 파일을 미리 읽어 둔다
     async function load(m){
       const my = ++token; bufs = {}; vol = 1;
+      defaults = m.defaultSounds != null ? !!m.defaultSounds : defaultsGlobal;   // 이 말랑이에 defaultSounds 가 있으면 그 값, 없으면 전체 기본값
       ensure();
       if (!ctx || !m.sfx) return;
       vol = m.sfx.volume == null ? 1 : m.sfx.volume;
