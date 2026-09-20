@@ -82,6 +82,24 @@
   .counter span { color: var(--brand); font-weight: 800; }
   .msg { margin-top: 10px; font-size: 13px; color: var(--sub); min-height: 18px; transition: opacity 0.3s; }
   .hint { margin-top: 4px; font-size: 12px; color: var(--sub); opacity: 0.7; }
+  /* 아래쪽 가로 말랑이 목록 (config 의 FEATURED 를 켰을 때만 보여요) */
+  .strip { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; gap: 10px; overflow-x: auto;
+    padding: 14px 14px calc(12px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    background: linear-gradient(to top, var(--bg) 78%, transparent); }
+  .strip::-webkit-scrollbar { display: none; }
+  body.featured .strip { display: flex; }
+  body.featured .backBtn { display: none; }
+  body.featured #playScreen { padding-bottom: 140px; }
+  .strip-item { flex: 0 0 auto; width: 86px; background: var(--card); border: none; border-radius: 18px; padding: 10px 6px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; font-family: inherit; color: var(--text);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.15s; }
+  .strip-item:first-child { margin-left: auto; }
+  .strip-item:last-child { margin-right: auto; }
+  .strip-item:active { transform: scale(0.95); }
+  .strip-item.on { outline: 3px solid var(--brand); }
+  .strip-item .thumb { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; background: var(--bg2); border-radius: 50%; overflow: hidden; }
+  .strip-item .thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .strip-item .name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 </style>
 </head>
 <body>
@@ -106,7 +124,7 @@
   <div class="msg" id="msg"></div>
   <div class="hint">누른 채로 끌면 말랑한 피부가 따라와요 · 빈 곳을 드래그하면 돌려볼 수 있어요<br>스페이스바(또는 ✊ 버튼)를 누르고 있으면 꽉 쥐어요</div>
 </div>
-
+<div class="strip" id="strip"></div>
 <!-- ① 말랑이 목록 : 새 말랑이는 여기만 수정하세요 -->
 <script id="malangi-config">
 /* =====================================================================
@@ -177,7 +195,11 @@
 //   true  = 파일이 없는 소리를 기본 효과음(툭·삐걱·바삭 등)으로 대신해요.
 //   말랑이마다 다르게 하려면 그 말랑이 항목에 defaultSounds: true (또는 false) 를 넣어요. 넣지 않은 말랑이는 위 값을 따라요.
 const DEFAULT_SOUNDS = false;
-
+  
+// 처음 화면에 바로 보여줄 말랑이의 id 예요. 아래쪽에는 모든 말랑이가 가로 목록으로 나와서 눌러서 바꿀 수 있어요.
+// 이 줄을 지우거나 '' 로 두면 예전처럼 카드 목록(홈 화면)에서 골라요.
+const FEATURED = 'butter';
+  
 const MALANGIS = [
   {
     id: 'mandu',
@@ -1407,7 +1429,7 @@ const MALANGIS = [
         if (!img) return;
         setTimeout(()=>{ try { im.src = makeCutoutCanvas(img, getMask(m, img), 160).toDataURL(); } catch(e){ console.warn('[말랑이] 썸네일 생성 실패:', m.id, e); } }, 30);
       });
-      th.appendChild(im);
+      th.appendChild(im); m._thumbEl = im;                               // 아래쪽 가로 목록도 이 썸네일을 그대로 써요
       const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = m.name;
       const tg = document.createElement('div'); tg.className = 'tag';
       m._tagEl = tg;
@@ -1425,7 +1447,29 @@ const MALANGIS = [
       gridEl.appendChild(el);
     }
   }
-
+  // ---------- 아래쪽 가로 말랑이 목록 (config 의 FEATURED 를 켰을 때) ----------
+  const stripEl = $('strip');
+  function buildStrip(){
+    stripEl.textContent = '';
+    LIST.forEach((m)=>{
+      const b = document.createElement('button'); b.className = 'strip-item'; b.type = 'button'; b.title = m.name;
+      const th = document.createElement('div'); th.className = 'thumb';
+      const im = document.createElement('img'); im.alt = m.name;
+      const copy = ()=>{ if (m._thumbEl && m._thumbEl.src) im.src = m._thumbEl.src; };
+      if (m._thumbEl){ m._thumbEl.addEventListener('load', copy); copy(); }   // 홈 카드 썸네일이 늦게 만들어져도 따라 바뀜
+      th.appendChild(im);
+      const nm = document.createElement('div'); nm.className = 'name'; nm.textContent = m.name;
+      b.append(th, nm);
+      b.addEventListener('click', ()=>{ if (current !== m) openMalangi(m); });
+      m._stripEl = b;
+      stripEl.appendChild(b);
+    });
+  }
+  function markStrip(m){                                              // 지금 열린 말랑이를 표시하고 가운데로 스크롤
+    LIST.forEach((x)=>{ if (x._stripEl) x._stripEl.classList.toggle('on', x === m); });
+    const el = m._stripEl;
+    if (el && stripEl.scrollTo) stripEl.scrollTo({ left: el.offsetLeft - (stripEl.clientWidth - el.offsetWidth)/2, behavior:'smooth' });
+  }
   // ---------- Three.js 로드 (cdnjs → jsDelivr 순서로 시도) ----------
   const THREE_URLS = [
     'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
@@ -2230,6 +2274,7 @@ const MALANGIS = [
     countEl.textContent = getCount(m);
     msgEl.style.opacity = '0';
     ready = false; current = m;
+    if (document.body.classList.contains('featured')) markStrip(m);
     if (renderer) resetInteraction();
     loadingEl.style.display = 'flex';
     loadingEl.textContent = '3D 말랑이 빚는 중… 🫧';
@@ -2305,7 +2350,12 @@ const MALANGIS = [
 
     const wr = $('waxReset');                        // 왁뿌볼: 새 왁스 입히기
     if (wr) wr.addEventListener('click', ()=>{ Wax.reset(); wr.blur(); });
-
+    const featured = (typeof FEATURED !== 'undefined' && FEATURED) ? LIST.find((x)=> x.id === FEATURED) : null;
+    if (featured){                                    // 시작하자마자 이 말랑이를 보여주고, 아래에 가로 목록을 둔다
+      document.body.classList.add('featured');
+      buildStrip();
+      openMalangi(featured);
+    }
     loadThree();                                      // 홈 화면에서 미리 받아 둠
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
