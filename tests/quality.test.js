@@ -31,3 +31,7 @@ test('ignores huge gaps (탭 전환)', ()=>{
   for (let i=0;i<5;i++){ t += 16; m.add(t, 16); }
   eq(m.slow(t), false);
 });
+
+import { shouldRender } from '../js/quality.js';
+test('움직이면 매 프레임 그린다', ()=> eq(shouldRender(true, 1000, 995), true));
+test('가만히 있으면 50ms 지나야 그린다', ()=> eq([shouldRender(false, 1030, 1000), shouldRender(false, 1050, 1000)], [false, true]));

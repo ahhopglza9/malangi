@@ -8,7 +8,7 @@ import { getMask } from './ui.js';
 import { Wax } from './wax.js';
 import { Sound } from './sound.js';
 import { haptic } from './dom.js';
-import { TIERS, lowerTier, createFrameMonitor } from './quality.js';
+import { TIERS, lowerTier, createFrameMonitor, shouldRender } from './quality.js';
 
 const stageEl = document.getElementById('stage'), canvas = document.getElementById('c');
 
@@ -19,6 +19,7 @@ let renderer, scene, camera, refCam, mesh, geo, material, shadow, body, tex, tex
 let posAttr, strainAttr, ready = false;
 let quality = 'high', qualityLocked = false;                     // 품질 단계 (quality.js)
 const monitor = createFrameMonitor();
+let lastRender = 0, needsRender = true;                          // 가만히 있을 때 화면 갱신을 줄이기 위한 상태
 let active = false, onTouch = ()=>{};
 let EL0 = 0.70, DIST = 6.0;                                   // 기준 카메라 = 사진이 찍힌 시점
 let az = 0, el = EL0, dist = DIST;                            // 화면 카메라 (드래그로 회전)
@@ -44,7 +45,7 @@ function placeCamera(cam, a, e, d){
   cam.lookAt(LOOK.x, LOOK.y, LOOK.z);
   cam.updateMatrixWorld();
 }
-function updateCamera(){ placeCamera(camera, az, el, dist); }
+function updateCamera(){ placeCamera(camera, az, el, dist); needsRender = true; }
 
 // 렌더러·카메라·조명 없이 셰이더 재질 · 그림자 · 입력 — 앱 전체에서 한 번만
 function initRenderer(){
@@ -215,6 +216,7 @@ function applyMalangi(m, img, imgB){
   updateCamera();
   resetInteraction();
   resize();
+  needsRender = true;
 }
 
 function updateShadow(){
@@ -231,6 +233,7 @@ function resize(){
   Wax.onResize(r.height*renderer.getPixelRatio());
   camera.aspect = r.width/r.height;
   camera.updateProjectionMatrix();
+  needsRender = true;
 }
 function resetInteraction(){
   contacts.clear(); orbit = null; Sound.stopRub();
@@ -371,7 +374,10 @@ function frame(now){
   Sound.updateRub(res.deform, maxSpeed);
 
   uTime.value = now/1000;
-  renderer.render(scene, camera);
+  const busy = needsRender || res.active || !!orbit || contacts.size > 0 || gripLevel > 0 || Wax.busy();
+  if (shouldRender(busy, now, lastRender)){
+    renderer.render(scene, camera); lastRender = now; needsRender = false;
+  }
 }
 
 export function initScene(opts){ onTouch = opts.onTouch; if (!renderer) initRenderer(); }

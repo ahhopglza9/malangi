@@ -28,3 +28,5 @@ export function createFrameMonitor({ windowMs = 2000, limitMs = 25, maxGapMs = 2
     },
   };
 }
+// 움직이는 게 있으면 매 프레임, 가만히 있으면 50ms(≈20fps)마다 한 번만 그린다 (만두 뒷면 반짝이는 계속 보임)
+export const shouldRender = (busy, now, lastRender)=> busy || now - lastRender >= 50;

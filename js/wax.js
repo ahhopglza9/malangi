@@ -7,6 +7,7 @@ import { $, showMsg, haptic } from './dom.js';
 
 export const Wax = (function(){
   const sim = WaxSim.create();
+  let alive = false;                                              // 부스러기가 아직 날아가는 중인지 (화면 갱신 판단용)
   let on = false, cfg = {}, R = 1.25, hard = 1, gripK = 1, done = false, lastPct = -1;
   let core = null, coreMat = null, pts = null, ptsGeo = null, ptsMat = null;
 
@@ -48,11 +49,12 @@ export const Wax = (function(){
     report();
   }
   function disable(){
+    alive = false;
     on = false; U.uWax.value = 0; U.uWaxLit.value = 0;
     if (core){ core.visible = false; pts.visible = false; }
     const btn = $('waxReset'); if (btn) btn.hidden = true;
   }
-  function reset(){ if (!on) return; sim.reset(R); done = false; lastPct = -1; report(); Sound.tick(); showMsg('새 왁뿌볼이에요 🫧'); }
+  function reset(){ if (!on) return; sim.reset(R); alive = false; done = false; lastPct = -1; report(); Sound.tick(); showMsg('새 왁뿌볼이에요 🫧'); }
   // 매 프레임: 누르는 손가락·쥐는 힘이 왁스에 피해를 주고, 깨지면 소리·진동·부스러기
   function update(dt, list, grip){
     if (!on) return;
@@ -65,6 +67,7 @@ export const Wax = (function(){
     }
     if (grip > 0.02) sim.hitAll(0.5*grip*dt*hard*gripK);                                           // 꽉 쥐면 여기저기서 와삭와삭
     const r = sim.step(dt);
+    alive = r.alive > 0;
     if (r.brokeNow){ Sound.crack(Math.min(1, 0.45 + 0.2*r.brokeNow)); haptic(6); }
     else if (r.ticksNow) Sound.tick();
     if (r.alive || r.brokeNow){
@@ -74,5 +77,5 @@ export const Wax = (function(){
     report();
   }
   function onResize(heightPx){ if (ptsMat) ptsMat.uniforms.uPointScale.value = heightPx/(2*Math.tan(15*Math.PI/180)); }
-  return { enable, disable, reset, update, onResize, busy:()=>false, get on(){ return on; }, sites:sim.sites, softness:()=>sim.softness() };
+  return { enable, disable, reset, update, onResize, busy:()=> on && alive, get on(){ return on; }, sites:sim.sites, softness:()=>sim.softness() };
 })();
