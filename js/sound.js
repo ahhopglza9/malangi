@@ -1,5 +1,14 @@
 import { DEFAULT_SOUNDS } from './config.js';
 
+// 같은 key 는 한 번만 불러온다 (실패하면 지워서 다음에 다시 시도)
+export function createOnceCache(load){
+  const m = new Map();
+  return (key)=>{
+    if (!m.has(key)) m.set(key, load(key).catch((e)=>{ m.delete(key); throw e; }));
+    return m.get(key);
+  };
+}
+
 // ---------- 소리 (파일이 있으면 파일, 없으면 기본 합성음) ----------
 export const Sound = (function(){
   let ctx = null, master = null, noiseBuf = null, bufs = {}, vol = 1, sqInt = 0, token = 0, rub = null, grip = null;
@@ -31,6 +40,7 @@ export const Sound = (function(){
   function decode(ab){
     return new Promise((res, rej)=>{ const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
   }
+  const getBuffer = createOnceCache(async (src)=> decode(await (await fetch(src)).arrayBuffer()));
   // 말랑이를 열 때 그 말랑이의 효과음 파일을 미리 읽어 둔다
   async function load(m){
     const my = ++token; bufs = {}; vol = 1;
@@ -43,8 +53,7 @@ export const Sound = (function(){
       const src = m.sfx[key] || '';
       if (!src) continue;
       try {
-        const r = await fetch(src);
-        const buf = await decode(await r.arrayBuffer());
+        const buf = await getBuffer(src);                           // 같은 파일은 한 번만 받아 디코드
         if (my === token) bufs[key] = buf;
       } catch(e){ console.warn('[말랑이] 효과음을 못 읽어서 기본 효과음으로 대체해요:', m.id, key, e); }
     }
