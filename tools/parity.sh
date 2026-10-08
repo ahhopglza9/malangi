@@ -16,5 +16,5 @@ prof=$(mktemp -d)
 "$CHROME" --headless=new --enable-unsafe-swiftshader --use-angle=swiftshader --window-size=1200,900 --user-data-dir="$prof" \
   --remote-debugging-port=0 "http://localhost:8765/tests/parity.html?report=http://127.0.0.1:8767/&t=$RANDOM" >/dev/null 2>&1 & chr=$!
 for i in $(seq 1 120); do kill -0 $rcv 2>/dev/null || break; sleep 1; done
-kill $chr $rcv 2>/dev/null; taskkill //F //T //PID $chr >/dev/null 2>&1
+taskkill //F //T //PID $chr >/dev/null 2>&1; taskkill //F //T //PID $rcv >/dev/null 2>&1; rm -rf "$prof"
 PYTHONIOENCODING=utf-8 python -c "import json,sys; d=json.load(open(sys.argv[1],encoding='utf-8')); print('\n'.join(d['rows'])); print('최대', round(d['worst'],2))" "$out"
