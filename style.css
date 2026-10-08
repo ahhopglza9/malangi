@@ -1,0 +1,104 @@
+  :root {
+    --bg: #fdf3f0; --bg2: #ffe8e0; --card: #ffffff;
+    --text: #3a2e2e; --sub: #8a7a78; --brand: #ff8f7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #201a1c; --bg2: #2b2224; --card: #2c2426;
+      --text: #f2e9e7; --sub: #b6a6a4; --brand: #ff9a86;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #201a1c; --bg2: #2b2224; --card: #2c2426;
+    --text: #f2e9e7; --sub: #b6a6a4; --brand: #ff9a86;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: radial-gradient(circle at 50% 20%, var(--bg2), var(--bg));
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+    color: var(--text);
+    overscroll-behavior: none;
+  }
+  .screen { display: none; min-height: 100%; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px 40px; text-align: center; }
+  .screen.active { display: flex; }
+  h1 { font-size: clamp(20px, 5vw, 28px); margin: 0 0 4px; font-weight: 800; }
+  h2.playName { font-size: clamp(17px, 4.6vw, 22px); margin: 0 0 2px; font-weight: 800; }
+  p.sub { color: var(--sub); margin: 0 0 22px; font-size: clamp(13px, 3.6vw, 15px); }
+
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; width: min(360px, 88vw); }
+  .malangi-card {
+    background: var(--card); border: none; border-radius: 20px; padding: 18px 10px 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08); cursor: pointer; font-family: inherit; color: var(--text);
+    transition: transform 0.15s;
+  }
+  .malangi-card:active { transform: scale(0.95); }
+  .malangi-card.locked { cursor: default; opacity: 0.55; filter: grayscale(0.4); }
+  .malangi-card .thumb {
+    font-size: 34px; width: 64px; height: 64px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg2); border-radius: 50%; overflow: hidden;
+  }
+  .malangi-card .thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .malangi-card .name { font-size: 13px; font-weight: 700; }
+  .malangi-card .tag { font-size: 11px; color: var(--sub); }
+  @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+  .malangi-card.shake { animation: shake 0.25s; }
+
+  .backBtn {
+    align-self: flex-start; margin: 0 0 8px 4px; background: var(--card); border: none;
+    border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 700; color: var(--text);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer;
+  }
+  .stage { position: relative; width: min(440px, 94vw); height: min(440px, 94vw); display: flex; align-items: center; justify-content: center; }
+  .loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+    white-space: pre-line; padding: 24px; font-size: 14px; font-weight: 600; color: var(--sub); pointer-events: none; }
+  .controls { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .ctl { border: none; border-radius: 999px; padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 700;
+    background: var(--card); color: var(--text); box-shadow: 0 4px 12px rgba(0,0,0,0.08); cursor: pointer; transition: transform 0.12s;
+    user-select: none; -webkit-user-select: none; touch-action: none; }
+  .ctl small { font-weight: 600; color: var(--sub); }
+  .ctl.active { background: var(--brand); color: #fff; transform: scale(0.96); }
+  .ctl.active small { color: #fff; }
+  @media (hover: none) { .ctl small.key { display: none; } }
+  .ctl[hidden] { display: none; }
+  .vol { display: flex; align-items: center; gap: 6px; background: var(--card); border-radius: 999px; padding: 4px 14px 4px 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .vol .icon { background: transparent; box-shadow: none; padding: 6px 8px; font-size: 16px; touch-action: manipulation; }
+  .vol input[type=range] { width: 96px; accent-color: var(--brand); }
+  canvas { display: block; width: 100%; height: 100%; cursor: pointer; touch-action: none; }
+  .counter {
+    margin-top: 18px; background: var(--card); border-radius: 999px; padding: 10px 22px;
+    font-size: 14px; font-weight: 600; color: var(--text); box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+  .counter span { color: var(--brand); font-weight: 800; }
+  .msg { margin-top: 10px; font-size: 13px; color: var(--sub); min-height: 18px; transition: opacity 0.3s; }
+  .hint { margin-top: 4px; font-size: 12px; color: var(--sub); opacity: 0.7; }
+  /* 크레딧: 어떤 말랑이를 만지든 터치 한 번에 1개씩 쌓여요 (오른쪽 위에 항상 표시) */
+  .credit { position: fixed; top: 12px; right: 14px; z-index: 6; display: flex; align-items: center; gap: 6px; pointer-events: none;
+    background: var(--card); border-radius: 999px; padding: 8px 16px; font-size: 14px; font-weight: 700; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .credit b { color: var(--brand); font-weight: 800; }
+  .credit .plus { position: absolute; left: 50%; top: 100%; font-size: 13px; font-weight: 800; color: var(--brand); opacity: 0; }
+  .credit.bump { animation: creditBump 0.22s ease-out; }
+  .credit .plus.show { animation: creditPlus 0.7s ease-out; }
+  @keyframes creditBump { 0% { transform: scale(1); } 40% { transform: scale(1.18); } 100% { transform: scale(1); } }
+  @keyframes creditPlus { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, 16px); } }
+  /* 아래쪽 가로 말랑이 목록 (config 의 FEATURED 를 켰을 때만 보여요) */
+  .strip { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; gap: 10px; overflow-x: auto;
+    padding: 14px 14px calc(12px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    background: linear-gradient(to top, var(--bg) 78%, transparent); }
+  .strip::-webkit-scrollbar { display: none; }
+  body.featured .strip { display: flex; }
+  body.featured .backBtn { display: none; }
+  body.featured #playScreen { padding-bottom: 140px; }
+  .strip-item { flex: 0 0 auto; width: 86px; background: var(--card); border: none; border-radius: 18px; padding: 10px 6px 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; font-family: inherit; color: var(--text);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.15s; }
+  .strip-item:first-child { margin-left: auto; }
+  .strip-item:last-child { margin-right: auto; }
+  .strip-item:active { transform: scale(0.95); }
+  .strip-item.on { outline: 3px solid var(--brand); }
+  .strip-item .thumb { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; background: var(--bg2); border-radius: 50%; overflow: hidden; }
+  .strip-item .thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .strip-item .name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
