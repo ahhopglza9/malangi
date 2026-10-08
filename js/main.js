@@ -5,7 +5,8 @@ import { Sound } from './sound.js';
 import { Wax } from './wax.js';
 import { loadThree, whenThree, loadImage, loadImageBack } from './loader.js';
 import { LIST, buildHome, buildStrip, markStrip, refreshTag, showCredits, bumpCount, getCount } from './ui.js';
-import { initScene, hasRenderer, setReady, setActive, applyMalangi, resetInteraction, setGrip } from './scene.js';
+import { initScene, hasRenderer, setReady, setActive, applyMalangi, resetInteraction, setGrip, setQuality } from './scene.js';
+import { initialTier } from './quality.js';
 
 window.__malangiBooted = true;
 const homeScreen = $('homeScreen'), playScreen = $('playScreen');
@@ -45,6 +46,14 @@ function openMalangi(m){
   });
 }
 function init(){
+  const q = initialTier({                                         // 기기 성능에 맞는 시작 품질 (주소에 ?q=low|mid|high 로 고정 가능)
+    search: location.search,
+    touch: navigator.maxTouchPoints > 0,
+    minSide: Math.min(screen.width, screen.height),
+    cores: navigator.hardwareConcurrency,
+    memory: navigator.deviceMemory,
+  });
+  setQuality(q.tier, q.locked);
   buildHome(openMalangi);
   showCredits(false);                               // 저장해 둔 크레딧 표시
   $('backBtn').addEventListener('click', ()=>{

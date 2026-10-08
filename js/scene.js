@@ -8,6 +8,7 @@ import { getMask } from './ui.js';
 import { Wax } from './wax.js';
 import { Sound } from './sound.js';
 import { haptic } from './dom.js';
+import { TIERS, lowerTier, createFrameMonitor } from './quality.js';
 
 const stageEl = document.getElementById('stage'), canvas = document.getElementById('c');
 
@@ -16,6 +17,8 @@ const stageEl = document.getElementById('stage'), canvas = document.getElementBy
 // =====================================================================
 let renderer, scene, camera, refCam, mesh, geo, material, shadow, body, tex, texBack;
 let posAttr, strainAttr, ready = false;
+let quality = 'high', qualityLocked = false;                     // 품질 단계 (quality.js)
+const monitor = createFrameMonitor();
 let active = false, onTouch = ()=>{};
 let EL0 = 0.70, DIST = 6.0;                                   // 기준 카메라 = 사진이 찍힌 시점
 let az = 0, el = EL0, dist = DIST;                            // 화면 카메라 (드래그로 회전)
@@ -47,7 +50,7 @@ function updateCamera(){ placeCamera(camera, az, el, dist); }
 function initRenderer(){
   U.uSites.value = Wax.sites;
   renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true, powerPreference:'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, TIERS[quality].pixelRatioCap));
   renderer.setClearColor(0x000000, 0);
   scene  = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
@@ -104,7 +107,7 @@ function applyMalangi(m, img, imgB){
   if (isSheet){
     // (실루엣) 사진에서 배경을 지우고, 윤곽 그대로 부풀린 몸통을 만든다
     mk = getMask(m, img);
-    const geom = buildSilhouette(mk, { size:m.size, puff:m.puff, verts:m.verts, depth:m.depth, bevel:m.bevel, thick:m.thick });
+    const geom = buildSilhouette(mk, { size:m.size, puff:m.puff, verts:Math.round((m.verts || 3200)*TIERS[quality].density), depth:m.depth, bevel:m.bevel, thick:m.thick });
     body = SquishCore.fromGeometry(geom, { floor:false, centerY:0 });
     bodyPx = { cx:mk.cx, cy:mk.cy, rx:mk.rx, ry:mk.ry };
     camEl = m.camEl != null ? m.camEl : 0.0;
@@ -331,6 +334,13 @@ let last = performance.now();
 function frame(now){
   requestAnimationFrame(frame);
   if (!ready || !active){ last = now; return; }
+  if (contacts.size || gripHeld){                                  // 만지는 동안 느리면 품질을 한 단계 낮춘다
+    monitor.add(now, now - last);
+    if (!qualityLocked && quality !== 'low' && monitor.slow(now)){
+      setQuality(lowerTier(quality), false); monitor.reset();
+      console.info('[말랑이] 품질 단계를 낮췄어요 →', quality);
+    }
+  } else monitor.reset();
   const dt = Math.min((now-last)/1000, 1/30); last = now;
 
   const list = [];
@@ -369,4 +379,11 @@ export const hasRenderer = ()=> !!renderer;
 export const isReady = ()=> ready;
 export function setReady(v){ ready = v; if (v) last = performance.now(); }
 export function setActive(v){ active = v; }
+// 품질 단계 바꾸기: 해상도는 바로, 메쉬 밀도는 다음에 말랑이를 열 때
+export function setQuality(tier, locked){
+  quality = tier; qualityLocked = !!locked;
+  SquishCore.setDensity(TIERS[tier].density);
+  if (renderer){ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, TIERS[tier].pixelRatioCap)); resize(); }
+}
+export const getQuality = ()=> quality;
 export { applyMalangi, resetInteraction, setGrip };
