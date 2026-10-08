@@ -4,6 +4,7 @@ import { $, showMsg } from './dom.js';
 import { makeMask, makeCutoutCanvas } from './image/silhouette.js';
 import { waxThumb } from './image/texture.js';
 import { loadImage } from './loader.js';
+import { readToday, writeToday } from './today.js';
 
 const DEFAULTS = {
   tag: '사용 가능',
@@ -23,24 +24,10 @@ MALANGIS.forEach((m)=>{
 
 const gridEl = $('grid');
 
-// ---------- 만진 횟수 (말랑이별로 저장) ----------
-const counts = {};
-function getCount(m){
-  if (counts[m.id] == null){
-    let n = 0;
-    try {
-      let v = localStorage.getItem('malangi_count_' + m.id);
-      if (v == null && m.id === 'mandu') v = localStorage.getItem('malangi_count');   // 예전 버전 기록 이어받기
-      n = parseInt(v || '0', 10) || 0;
-    } catch(e){}
-    counts[m.id] = n;
-  }
-  return counts[m.id];
-}
-function setCount(m, n){
-  counts[m.id] = n;
-  try { localStorage.setItem('malangi_count_' + m.id, String(n)); } catch(e){}
-}
+// ---------- 오늘 만진 횟수 (말랑이별 · 날짜가 바뀌면 0부터) ----------
+function store(){ try { return window.localStorage; } catch(e){ return null; } }
+function getCount(m){ const s = store(); return s ? readToday(s, m.id) : 0; }
+function setCount(m, n){ const s = store(); if (s) writeToday(s, m.id, n); }
 // ---------- 크레딧 (어떤 말랑이를 만지든 터치 한 번에 1개씩 쌓임 · 브라우저에 저장) ----------
 const creditEl = $('credit'), creditNumEl = $('creditNum'), creditPlusEl = $('creditPlus');
 let credits = 0;
