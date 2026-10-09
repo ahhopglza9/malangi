@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><title>말랑이 패리티</title>
+<style>body{font:13px/1.5 sans-serif;padding:12px}iframe{width:520px;height:760px;border:1px solid #ccc}#out{white-space:pre}</style></head>
+<body>
+<div><iframe id="a" src="../_baseline.html"></iframe> <iframe id="b" src="../index.html?q=high"></iframe></div>
+<div id="out">대기…</div>
+<script>
+// 원본(_baseline.html)과 새 버전(index.html)을 같은 크기로 띄우고, 말랑이마다 같은 프레임을 캡처해 픽셀 차이를 잰다
+const sleep = (ms)=> new Promise(r=>setTimeout(r, ms));
+function hook(win){                                   // 실제로 그린 프레임 직후에만 캔버스를 읽는다 (WebGL 버퍼는 합성 뒤 지워짐)
+  const raf = win.requestAnimationFrame.bind(win);
+  const c = win.document.getElementById('c');
+  const gl = c.getContext('webgl2') || c.getContext('webgl');
+  let draws = 0; const de = gl.drawElements.bind(gl); gl.drawElements = (...a)=>{ draws++; return de(...a); };
+  win.__want = null;
+  win.requestAnimationFrame = (cb)=> raf((t)=>{ draws = 0; cb(t); if (win.__want && draws > 0){
+    const url = c.toDataURL('image/png');
+    const w = win.__want; win.__want = null; w(url); } });
+}
+const grab = (win)=> new Promise((res)=>{ win.__want = res; setTimeout(()=>{ if (win.__want === res){ win.__want = null; res(null); } }, 8000); });   // 8초 안에 못 그리면 실패로
+function pixels(url){ return new Promise((res)=>{ const im = new Image(); im.onload = ()=>{
+  const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+  const g = c.getContext('2d'); g.drawImage(im, 0, 0); res(g.getImageData(0, 0, c.width, c.height)); }; im.src = url; }); }
+function diff(p, q){
+  if (p.width !== q.width || p.height !== q.height) return Infinity;
+  let s = 0; for (let i=0;i<p.data.length;i++) s += Math.abs(p.data[i]-q.data[i]);
+  return s / p.data.length;
+}
+async function main(){
+  await sleep(6000);
+  const A = document.getElementById('a').contentWindow, B = document.getElementById('b').contentWindow;
+  hook(A); hook(B);
+  const names = [...A.document.querySelectorAll('.strip-item')].map(b=>b.title);
+  const rows = []; let worst = 0;
+  for (const n of names){
+    for (const W of [A, B]) [...W.document.querySelectorAll('.strip-item')].find(b=>b.title===n).click();
+    await sleep(3500);                                 // 로딩 + 출렁임이 멈출 시간
+    const [ua, ub] = await Promise.all([grab(A), grab(B)]);
+    const d = (ua && ub) ? diff(await pixels(ua), await pixels(ub)) : Infinity;   // Infinity = 캡처 실패
+    worst = Math.max(worst, d); rows.push(n.padEnd(10) + ' 평균 차이 ' + d.toFixed(2));
+  }
+  document.getElementById('out').textContent = rows.join('\n') + '\n최대 ' + worst.toFixed(2);
+  window.__parity = { worst, rows };
+  const report = new URLSearchParams(location.search).get('report');   // 헤드리스 실행용: 결과를 이 주소로 보냄
+  if (report) fetch(report, { method:'POST', body: JSON.stringify(window.__parity) });
+}
+main();
+</script></body></html>
