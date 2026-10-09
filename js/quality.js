@@ -12,10 +12,13 @@ export function initialTier({ search, touch, minSide, cores, memory }){
   return { tier: phone && weak ? 'mid' : 'high', locked: false };
 }
 export const lowerTier = (t)=> t === 'high' ? 'mid' : 'low';
-// 최근 windowMs 동안의 평균 프레임 시간이 limitMs 를 넘으면 slow. maxGapMs 보다 긴 간격(탭 전환 등)은 무시
-export function createFrameMonitor({ windowMs = 2000, limitMs = 25, maxGapMs = 200 } = {}){
-  let s = [];
+// 만지는 동안 최근 windowMs 의 평균 프레임 시간이 limitMs 를 넘고, 가만히 있을 때(기기 기본 속도)보다도 확실히 느리면 slow.
+//   절전 모드처럼 화면 자체가 30Hz 로 묶인 기기는 가만히 있을 때도 33ms 라서 품질을 낮추지 않는다.
+//   maxGapMs 보다 긴 간격(탭 전환 등)은 무시
+export function createFrameMonitor({ windowMs = 2000, limitMs = 25, maxGapMs = 200, ratio = 1.3 } = {}){
+  let s = [], base = 1000/60;                                     // base: 가만히 있을 때의 프레임 간격 (평균)
   return {
+    idle(dt){ if (dt > 0 && dt <= maxGapMs) base += (dt - base)*0.05; },
     add(now, dt){
       if (dt > maxGapMs){ s = []; return; }
       s.push([now, dt]);
@@ -24,7 +27,8 @@ export function createFrameMonitor({ windowMs = 2000, limitMs = 25, maxGapMs = 2
     reset(){ s = []; },
     slow(now){
       if (!s.length || now - s[0][0] < windowMs*0.9) return false;
-      return s.reduce((a, x)=> a + x[1], 0) / s.length > limitMs;
+      const avg = s.reduce((a, x)=> a + x[1], 0) / s.length;
+      return avg > limitMs && avg > base*ratio;
     },
   };
 }

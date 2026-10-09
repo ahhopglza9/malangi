@@ -1,6 +1,6 @@
 // 시작점: 모듈을 이어 붙이고 화면을 띄운다
 import { FEATURED } from './config.js';
-import { $ } from './dom.js';
+import { $, markBooted } from './dom.js';
 import { Sound } from './sound.js';
 import { Wax } from './wax.js';
 import { loadThree, whenThree, loadImage, loadImageBack } from './loader.js';
@@ -8,7 +8,7 @@ import { LIST, buildHome, buildStrip, markStrip, refreshTag, showCredits, bumpCo
 import { initScene, hasRenderer, setReady, setActive, applyMalangi, resetInteraction, setGrip, setQuality } from './scene.js';
 import { initialTier } from './quality.js';
 
-window.__malangiBooted = true;
+markBooted();
 const homeScreen = $('homeScreen'), playScreen = $('playScreen');
 const loadingEl = $('loading'), countEl = $('count'), msgEl = $('msg'), nameEl = $('playName');
 let current = null, openToken = 0;

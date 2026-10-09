@@ -4,7 +4,7 @@ import { $, showMsg } from './dom.js';
 import { makeMask, makeCutoutCanvas } from './image/silhouette.js';
 import { waxThumb } from './image/texture.js';
 import { loadImage } from './loader.js';
-import { readToday, writeToday } from './today.js';
+import { createTodayCounter } from './today.js';
 
 const DEFAULTS = {
   tag: '사용 가능',
@@ -26,8 +26,9 @@ const gridEl = $('grid');
 
 // ---------- 오늘 만진 횟수 (말랑이별 · 날짜가 바뀌면 0부터) ----------
 function store(){ try { return window.localStorage; } catch(e){ return null; } }
-function getCount(m){ const s = store(); return s ? readToday(s, m.id) : 0; }
-function setCount(m, n){ const s = store(); if (s) writeToday(s, m.id, n); }
+const today = createTodayCounter(store);
+function getCount(m){ return today.get(m.id); }
+function setCount(m, n){ today.set(m.id, n); }
 // ---------- 크레딧 (어떤 말랑이를 만지든 터치 한 번에 1개씩 쌓임 · 브라우저에 저장) ----------
 const creditEl = $('credit'), creditNumEl = $('creditNum'), creditPlusEl = $('creditPlus');
 let credits = 0;

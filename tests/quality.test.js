@@ -35,3 +35,16 @@ test('ignores huge gaps (탭 전환)', ()=>{
 import { shouldRender } from '../js/quality.js';
 test('움직이면 매 프레임 그린다', ()=> eq(shouldRender(true, 1000, 995), true));
 test('가만히 있으면 50ms 지나야 그린다', ()=> eq([shouldRender(false, 1030, 1000), shouldRender(false, 1050, 1000)], [false, true]));
+
+test('절전 모드 30Hz: 가만히 있을 때도 33ms 면 느린 게 아니다', ()=>{
+  const m = createFrameMonitor(); let t = 0;
+  for (let i=0;i<60;i++){ t += 33.3; m.idle(33.3); }
+  for (let i=0;i<70;i++){ t += 33.3; m.add(t, 33.3); }
+  eq(m.slow(t), false);
+});
+test('평소 16ms 인데 만질 때 30ms 면 느리다', ()=>{
+  const m = createFrameMonitor(); let t = 0;
+  for (let i=0;i<60;i++){ t += 16.7; m.idle(16.7); }
+  for (let i=0;i<70;i++){ t += 30; m.add(t, 30); }
+  eq(m.slow(t), true);
+});

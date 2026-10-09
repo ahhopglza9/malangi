@@ -343,7 +343,7 @@ function frame(now){
       setQuality(lowerTier(quality), false); monitor.reset();
       console.info('[말랑이] 품질 단계를 낮췄어요 →', quality);
     }
-  } else monitor.reset();
+  } else { monitor.reset(); monitor.idle(now - last); }
   const dt = Math.min((now-last)/1000, 1/30); last = now;
 
   const list = [];
