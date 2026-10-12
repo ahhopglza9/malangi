@@ -1,4 +1,8 @@
 import { DEFAULT_SOUNDS } from './config.js';
+import { findBounds, loudnessGain, applyFades, hitShape } from './audio-prep.js';
+
+// 비교용: 주소에 ?old=sound 를 붙이면 예전 소리 방식(다듬기·세기·좌우 없음)
+const OLD_SOUND = new URLSearchParams(location.search).get('old') === 'sound';
 
 // 같은 key 는 한 번만 불러온다 (실패하면 지워서 다음에 다시 시도)
 export function createOnceCache(load){
@@ -21,6 +25,7 @@ export const Sound = (function(){
     muted = localStorage.getItem('malangi_muted') === '1';
   } catch(e){}
   function savePrefs(){ try { localStorage.setItem('malangi_volume', String(level)); localStorage.setItem('malangi_muted', muted ? '1' : '0'); } catch(e){} }
+  const MAKEUP = OLD_SOUND ? 1 : 2;                               // 파일 소리를 -20dB 기준으로 맞춘 만큼 다시 키움 (합성음은 그대로, 튀는 순간은 리미터가 눌러 줌)
   function masterGain(){ return muted ? 0 : level*level; }        // 제곱: 슬라이더가 귀에 자연스럽게 느껴지도록
   function applyMaster(){ if (ctx && master) master.gain.setTargetAtTime(masterGain(), ctx.currentTime, 0.02); }
 
@@ -28,7 +33,12 @@ export const Sound = (function(){
     if (!ctx){
       try {
         ctx = new (window.AudioContext || window.webkitAudioContext)();
-        master = ctx.createGain(); master.gain.value = masterGain(); master.connect(ctx.destination);   // 모든 소리는 여기를 지난다
+        master = ctx.createGain(); master.gain.value = masterGain(); if (OLD_SOUND) master.connect(ctx.destination);
+        else {                                                    // 리미터: 순간적으로 튀는 소리만 살짝 눌러서 찢어지지 않게
+          const lim = ctx.createDynamicsCompressor();
+          lim.threshold.value = -6; lim.knee.value = 4; lim.ratio.value = 12; lim.attack.value = 0.002; lim.release.value = 0.12;
+          master.connect(lim); lim.connect(ctx.destination);
+        }   // 모든 소리는 여기를 지난다
         const len = ctx.sampleRate;
         noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
         const d = noiseBuf.getChannelData(0);
@@ -40,14 +50,30 @@ export const Sound = (function(){
   function decode(ab){
     return new Promise((res, rej)=>{ const p = ctx.decodeAudioData(ab, res, rej); if (p && p.catch) p.catch(rej); });
   }
-  const getBuffer = createOnceCache(async (src)=> decode(await (await fetch(src)).arrayBuffer()));
+  // 불러온 소리 다듬기: 앞뒤 무음을 자르고, 크기를 맞추고, 끝을 부드럽게 (파일은 그대로)
+  function prep(buf){
+    const chans = []; for (let c=0;c<buf.numberOfChannels;c++) chans.push(buf.getChannelData(c));
+    const { start, end } = findBounds(chans, buf.sampleRate);
+    const gain = loudnessGain(chans, start, end, buf.sampleRate);
+    const out = ctx.createBuffer(buf.numberOfChannels, end - start, buf.sampleRate);
+    for (let c=0;c<chans.length;c++){
+      const d = out.getChannelData(c), s = chans[c];
+      for (let i=0;i<d.length;i++) d[i] = s[start + i]*gain;
+      applyFades(d, buf.sampleRate, 2, 15);
+    }
+    return out;
+  }
+  const getBuffer = createOnceCache(async (src)=>{
+    const buf = await decode(await (await fetch(src)).arrayBuffer());
+    return OLD_SOUND ? buf : prep(buf);
+  });
   // 말랑이를 열 때 그 말랑이의 효과음 파일을 미리 읽어 둔다
   async function load(m){
     const my = ++token; bufs = {}; vol = 1;
     defaults = m.defaultSounds != null ? !!m.defaultSounds : defaultsGlobal;   // 이 말랑이에 defaultSounds 가 있으면 그 값, 없으면 전체 기본값
     ensure();
     if (!ctx || !m.sfx) return;
-    vol = m.sfx.volume == null ? 1 : m.sfx.volume;
+    vol = (m.sfx.volume == null ? 1 : m.sfx.volume)*MAKEUP;         // vol 은 파일 소리에만 쓰인다
     sqInt = m.sfx.squeezeInterval > 0 ? m.sfx.squeezeInterval : 0;
     for (const key of ['press', 'release', 'rub', 'squeeze', 'crack']){
       const src = m.sfx[key] || '';
@@ -63,6 +89,17 @@ export const Sound = (function(){
     const g = ctx.createGain(); g.gain.value = gain;
     src.connect(g).connect(master); src.start();
   }
+  // 세기·밝기·좌우를 실어 한 번 재생 (strength 0.4~1, pan -0.5~0.5)
+  function playShaped(buf, gain, strength, pan){
+    const sh = hitShape(strength, Math.random());
+    const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = sh.rate;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = Math.min(sh.cutoff, ctx.sampleRate*0.45);
+    const g = ctx.createGain(); g.gain.value = gain*sh.gain;
+    let node = src.connect(f).connect(g);
+    if (ctx.createStereoPanner){ const pn = ctx.createStereoPanner(); pn.pan.value = pan || 0; node = node.connect(pn); }
+    node.connect(master); src.start();
+  }
+  let lastStrength = 0.85, lastPan = 0;                            // 놓을 때 소리도 누른 자리·세기를 따른다
   function synthThud(kind, p){
     const now = ctx.currentTime;
     const dur = kind==='press' ? 0.22 : 0.13;
@@ -87,11 +124,15 @@ export const Sound = (function(){
     noise.connect(filt).connect(ng).connect(master);
     noise.start(now); noise.stop(now+dur);
   }
-  function hit(kind, power){
+  function hit(kind, power, strength, pan){
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
     const p = power == null ? 1 : power;
-    if (bufs[kind]) playSample(bufs[kind], vol*p, 0.94 + Math.random()*0.12);
+    if (kind === 'press'){ if (strength != null) lastStrength = strength; if (pan != null) lastPan = pan; }
+    if (bufs[kind]){
+      if (OLD_SOUND) playSample(bufs[kind], vol*p, 0.94 + Math.random()*0.12);
+      else playShaped(bufs[kind], vol*p, kind === 'press' ? lastStrength : lastStrength*0.8, lastPan);
+    }
     else if (defaults) synthThud(kind, p);
   }
   // 문지르는 동안 계속 나는 소리 (파일 rub 이 있으면 반복 재생, 없으면 노이즈)
@@ -161,7 +202,8 @@ export const Sound = (function(){
     const now = ctx.currentTime;
     if (grip.shots){                                                 // 간격 재생: 세게 쥘수록 간격이 조금 더 짧아지고 소리가 커진다
       if (now >= grip.next){
-        playSample(bufs.squeeze, Math.min(1, 0.5 + 0.5*lv)*vol, 0.94 + Math.random()*0.12 + lv*0.08);
+        if (OLD_SOUND) playSample(bufs.squeeze, Math.min(1, 0.5 + 0.5*lv)*vol, 0.94 + Math.random()*0.12 + lv*0.08);
+        else playShaped(bufs.squeeze, vol, 0.5 + 0.5*lv, 0);           // 세게 쥘수록 크고 묵직하게
         grip.next = now + sqInt*(1.25 - 0.5*lv);
       }
       return;
@@ -205,7 +247,8 @@ export const Sound = (function(){
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
     p = p == null ? 1 : p;
-    if (bufs.crack) playSample(bufs.crack, vol*p, 0.92 + Math.random()*0.16); else if (defaults) crackSynth(p);
+    if (bufs.crack){ if (OLD_SOUND) playSample(bufs.crack, vol*p, 0.92 + Math.random()*0.16); else playShaped(bufs.crack, vol*p, 0.8, (Math.random()-0.5)*0.6); }
+    else if (defaults) crackSynth(p);
   }
   function tick(){                                                            // 금이 가기 시작할 때의 작은 "딱"
     if (!ctx || bufs.crack || !defaults) return;
@@ -227,7 +270,7 @@ export const Sound = (function(){
     else if (defaults) synthThud('release', 0.8);
   }
   return {
-    ensure, load, press:(p)=>hit('press',p), release:()=>hit('release'), startRub, updateRub, stopRub,
+    ensure, load, press:(p, strength, pan)=>hit('press', p, strength, pan), release:()=>hit('release'), startRub, updateRub, stopRub,
     gripStart, gripUpdate, gripStop, crack, tick, setVolume, setMuted, preview,
     getVolume:()=>level, isMuted:()=>muted
   };
