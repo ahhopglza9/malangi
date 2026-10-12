@@ -8,6 +8,7 @@ import { getMask } from './ui.js';
 import { Wax } from './wax.js';
 import { Sound } from './sound.js';
 import { haptic } from './dom.js';
+import { pressStrength, panFor } from './audio-prep.js';
 import { TIERS, lowerTier, createFrameMonitor, shouldRender } from './quality.js';
 
 const stageEl = document.getElementById('stage'), canvas = document.getElementById('c');
@@ -276,8 +277,9 @@ function bindPointer(){
       lx:0, ly:0, lz:0, tlx:0, tly:0, tlz:0,
       cx:e.clientX, cy:e.clientY, speed:0
     });
-    if (wasEmpty){ onTouch(); Sound.press(1); Sound.startRub(); }
-    else Sound.press(0.6);
+    const strength = pressStrength(e), pan = panFor(e.clientX, canvas.getBoundingClientRect());   // 누른 세기 · 좌우 위치 → 소리
+    if (wasEmpty){ onTouch(); Sound.press(1, strength, pan); Sound.startRub(); }
+    else Sound.press(0.6, strength, pan);
     haptic(14);
   });
 
