@@ -37,6 +37,7 @@ export const SHADER_SRC = {
     uniform vec2 uCyl;        // 회전체: (맨 아래 y, 전체 높이)
     uniform vec3 uBox;        // 직육면체: 반쪽 크기 (가로/2, 높이/2, 깊이/2)
     uniform float uSheet;     // 1 = 실루엣(판) 몸통: 뒷면에도 사진을 그대로 입힌다
+    uniform float uRelight;   // 1 = 사진의 그림자를 지운 말랑이: 깔끔한 조명 음영을 직접 넣는다 (config 의 relight)
     uniform float uWaxLit;    // 1 = 사진 없이 색만 있는 왁뿌볼: 은은한 조명 음영과 왁스 광택을 직접 넣는다
     uniform float uWax;       // 1 = 왁뿌볼: 겉면이 조각으로 나뉘어 금이 가고, 깨진 조각은 떨어져 나간다
     uniform vec4 uSites[48];  // 조각 중심(xyz) + 부서진 정도(w: 0~1, 1이면 깨져서 사라짐)
@@ -153,6 +154,7 @@ export const SHADER_SRC = {
         col *= 0.74 + 0.36*max(dot(n, L), 0.0);
         col += vec3(pow(max(dot(n, H), 0.0), 60.0))*0.28*(1.0 - wxCrack);
       }
+      if (uRelight > 0.5) col *= 0.74 + 0.32*max(dot(n, L), 0.0);   // 그림자 없는 사진에 부드러운 입체 음영 (돌려도 자연스럽게)
       col *= shade * vol;
       col = mix(col, vec3(0.90, 1.0, 0.92), vStrain*0.38*uWhiten);    // 눌려서 얇아진 곳은 뽀얗게
       col += vec3(spec);

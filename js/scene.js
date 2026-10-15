@@ -200,6 +200,7 @@ function applyMalangi(m, img, imgB){
   U.uBox.value = new THREE.Vector3(boxDims[0]/2, boxDims[1]/2, boxDims[2]/2);        // 직육면체 반쪽 크기
   U.uCyl.value = new THREE.Vector2(-(m.height || 2.8)/2, m.height || 2.8);         // 회전체 전개도의 높이 범위
   U.uGloss.value  = m.gloss  != null ? m.gloss  : ((isSheet || isSphere) ? 0 : 1);     // 실루엣·구 말랑이는 기본 무광 (사진 그대로)
+  U.uRelight.value = m.relight ? 1 : 0;                            // 사진의 그림자를 지웠으면 조명 음영을 직접
   U.uWhiten.value = m.whiten != null ? m.whiten : ((isSheet || isSphere) ? 0 : 1);
 
   // 그림자 · 카메라 · 상태 초기화
