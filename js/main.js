@@ -7,11 +7,20 @@ import { loadThree, whenThree, loadImage, loadImageBack } from './loader.js';
 import { LIST, buildHome, buildStrip, markStrip, refreshTag, showCredits, bumpCount, getCount } from './ui.js';
 import { initScene, hasRenderer, setReady, setActive, applyMalangi, resetInteraction, setGrip, setQuality } from './scene.js';
 import { initialTier } from './quality.js';
+import { shouldShowCoach, markCoachSeen } from './coach.js';
 
 markBooted();
 const homeScreen = $('homeScreen'), playScreen = $('playScreen');
 const loadingEl = $('loading'), countEl = $('count'), msgEl = $('msg'), nameEl = $('playName');
 let current = null, openToken = 0;
+function store(){ try { return window.localStorage; } catch(e){ return null; } }
+// 처음 방문 안내: 말랑이가 처음 뜰 때 한 번 보여 주고, 말랑이를 누르면 사라진다 (다시는 안 나옴)
+function showCoachOnce(){
+  const coach = $('coach');
+  if (!coach || !shouldShowCoach(store())) return;
+  coach.hidden = false;
+  $('c').addEventListener('pointerdown', ()=>{ coach.hidden = true; markCoachSeen(store()); }, { once: true });
+}
 
 function openMalangi(m){
   if (current === m && playScreen.classList.contains('active')) return;   // 지금 보고 있는 말랑이를 다시 누르면 무시
@@ -37,6 +46,7 @@ function openMalangi(m){
       applyMalangi(m, img, imgB);
       loadingEl.style.display = 'none';
       setReady(true);
+      showCoachOnce();
     } catch(err){
       console.error(err);
       loadingEl.textContent = (err && err.name==='SecurityError')
@@ -87,11 +97,16 @@ function init(){
   gb.addEventListener('contextmenu', (e)=> e.preventDefault());
 
   // 볼륨: 슬라이더 + 음소거 토글 (설정은 브라우저에 기억)
-  const volEl = $('volRange'), muteEl = $('muteBtn');
+  const volEl = $('volRange'), muteEl = $('muteBtn'), volToggle = $('volToggle'), volPop = $('volPop');
+  // 🔊 를 누르면 볼륨 조절이 펼쳐지고, 바깥을 누르면 닫혀요
+  function setVolPop(open){ volPop.hidden = !open; volToggle.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  volToggle.addEventListener('click', ()=> setVolPop(volPop.hidden));
+  document.addEventListener('pointerdown', (e)=>{ if (!volPop.hidden && !$('vol').contains(e.target)) setVolPop(false); });
+  document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') setVolPop(false); });
   function refreshVol(){
     const v = Sound.getVolume(), m = Sound.isMuted();
     volEl.value = Math.round(v*100);
-    muteEl.textContent = (m || v === 0) ? '🔇' : (v < 0.5 ? '🔉' : '🔊');
+    muteEl.textContent = volToggle.textContent = (m || v === 0) ? '🔇' : (v < 0.5 ? '🔉' : '🔊');
     muteEl.setAttribute('aria-pressed', m ? 'true' : 'false');
     volEl.style.opacity = m ? 0.45 : 1;
   }
