@@ -1,6 +1,7 @@
 // 3D 장면 · 말랑이 올리기 · 입력(손가락/회전/꽉 쥐기) · 매 프레임 루프
 import { SquishCore } from './core/squish.js';
 import { SHADER_SRC } from './render/shaders.js';
+import { bleedZoom } from './render/view.js';
 import { U, uCam, uTime } from './render/uniforms.js';
 import { detectBody, prepareTexCanvas } from './image/texture.js';
 import { buildSilhouette } from './image/silhouette.js';
@@ -227,12 +228,13 @@ function updateShadow(){
 }
 function resize(){
   if (!renderer) return;
-  const r = stageEl.getBoundingClientRect();
+  const r = canvas.getBoundingClientRect();                       // 캔버스는 stage 보다 넓게 깔려 있어요 (style.css)
   if (!r.width || !r.height) return;
   renderer.setSize(r.width, r.height, false);
-  Wax.onResize(r.height*renderer.getPixelRatio());
   camera.aspect = r.width/r.height;
+  camera.zoom = bleedZoom(stageEl.getBoundingClientRect().width, r.width);   // 말랑이는 원래 크기 그대로
   camera.updateProjectionMatrix();
+  Wax.onResize(r.height*renderer.getPixelRatio()*camera.zoom);
   needsRender = true;
 }
 function resetInteraction(){

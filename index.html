@@ -4,32 +4,48 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>말랑이 공방</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="credit" id="credit" aria-label="크레딧">🪙 <b id="creditNum">0</b><span class="plus" id="creditPlus">+1</span></div>
+<header class="bar">
+  <span class="brand">말랑이 공방</span>
+  <div class="credit" id="credit" aria-label="크레딧">🪙 <b id="creditNum">0</b><span class="plus" id="creditPlus">+1</span></div>
+</header>
 
 <div class="screen active" id="homeScreen">
-  <h1>🫧 말랑이 공방</h1>
-  <p class="sub">만지고 싶은 말랑이를 골라보세요</p>
+  <h1>말랑이 공방</h1>
+  <p class="sub">만지고 싶은 말랑이를 골라 보세요</p>
   <div class="grid" id="grid"></div>
 </div>
 
 <div class="screen" id="playScreen">
-  <button class="backBtn" id="backBtn">← 돌아가기</button>
-  <h2 class="playName" id="playName"></h2>
-  <p class="sub" style="margin-top:0">꾹 누를수록 깊이 들어가요 (두 손가락도 가능)</p>
-  <div class="stage" id="stage"><canvas id="c"></canvas><div class="loading" id="loading">3D 말랑이 빚는 중… 🫧</div></div>
-  <div class="controls">
-    <button class="ctl" id="gripBtn" type="button">✊ 꽉 쥐기 <small class="key">(스페이스바)</small></button>
-    <button class="ctl" id="waxReset" type="button" hidden>🔁 새 왁뿌볼 <small id="waxPct">0%</small></button>
-    <div class="vol"><button class="ctl icon" id="muteBtn" type="button" aria-label="소리 켜기/끄기">🔊</button><input id="volRange" type="range" min="0" max="100" value="100" aria-label="볼륨"></div>
+  <button class="backBtn" id="backBtn" type="button">← 목록으로</button>
+  <div class="stage" id="stage">
+    <canvas id="c"></canvas>
+    <div class="loading" id="loading">3D 말랑이 빚는 중… 🫧</div>
+    <div class="coach" id="coach" hidden><span class="finger" aria-hidden="true">👆</span><b>꾹 눌러 보세요</b><small>누른 채로 끌면 늘어나고, 빈 곳을 끌면 돌아가요</small></div>
   </div>
-  <div class="counter">오늘 만지기 <span id="count">0</span>번</div>
+  <div class="info">
+    <h2 class="playName" id="playName"></h2>
+    <div class="counter">오늘 <span id="count">0</span>번</div>
+  </div>
   <div class="msg" id="msg"></div>
-  <div class="hint">누른 채로 끌면 말랑한 피부가 따라와요 · 빈 곳을 드래그하면 돌려볼 수 있어요<br>스페이스바(또는 ✊ 버튼)를 누르고 있으면 꽉 쥐어요</div>
+  <div class="controls">
+    <button class="ctl grip" id="gripBtn" type="button">✊ 꾹 쥐기 <small class="key">스페이스바</small></button>
+    <button class="ctl" id="waxReset" type="button" hidden>🔁 새 왁뿌볼 <small id="waxPct">0%</small></button>
+    <div class="vol" id="vol">
+      <button class="ctl icon" id="volToggle" type="button" aria-expanded="false" aria-controls="volPop" aria-label="소리 설정">🔊</button>
+      <div class="volPop" id="volPop" hidden>
+        <button class="ctl icon" id="muteBtn" type="button" aria-label="소리 켜기/끄기">🔊</button>
+        <input id="volRange" type="range" min="0" max="100" value="100" aria-label="볼륨">
+      </div>
+    </div>
+  </div>
 </div>
-<div class="strip" id="strip"></div>
+<nav class="strip" id="strip" aria-label="말랑이 고르기"></nav>
 <div class="msg" id="bootFail" style="opacity:1" hidden>화면을 불러오지 못했어요. 새로고침해 주세요.</div>
 <script>
   setTimeout(function(){ if (!window.__malangiBooted){ var e = document.getElementById('bootFail'); if (e) e.hidden = false; } }, 8000);
