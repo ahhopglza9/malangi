@@ -97,7 +97,18 @@ button { font: inherit; color: inherit; }
   border-radius: 50%; background: radial-gradient(closest-side, var(--bg-deep), transparent);
   pointer-events: none;
 }
-canvas { position: relative; display: block; width: 100%; height: 100%; cursor: pointer; touch-action: none; }
+/* 캔버스는 보이는 영역보다 사방 20% 넓게: 눌려서 퍼지는 그림자가 네모 테두리에서 잘리지 않게.
+   바깥 가장자리는 부드럽게 흐려져요 (말랑이 크기는 scene.js 가 카메라로 맞춰요) */
+canvas {
+  position: absolute; left: -20%; top: -20%; width: 140%; height: 140%;
+  display: block; cursor: pointer; touch-action: none;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent), linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent), linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  mask-composite: intersect;
+}
+.loading, .coach { z-index: 1; }
+.info, .msg, .controls, .backBtn { position: relative; z-index: 2; }   /* 넓힌 캔버스보다 위에 (버튼이 눌리게) */
 .loading {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
   white-space: pre-line; padding: 24px; font-family: var(--font-display); font-size: 16px; color: var(--fog); pointer-events: none;
